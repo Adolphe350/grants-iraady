@@ -28,18 +28,22 @@ def init_db():
         grant_id TEXT UNIQUE, title TEXT, donor TEXT,
         grant_size TEXT, category TEXT, posted_date TEXT,
         deadline TEXT, deadline_iso TEXT, url TEXT, image TEXT,
+        slug TEXT, description TEXT, full_text TEXT, apply_url TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
-    try:
-        conn.execute("ALTER TABLE grants ADD COLUMN deadline_iso TEXT")
-    except Exception:
-        pass
+    for col in ['deadline_iso','slug','description','full_text','apply_url']:
+        try:
+            conn.execute("ALTER TABLE grants ADD COLUMN " + col + " TEXT")
+        except Exception:
+            pass
     conn.commit()
-    rows = conn.execute("SELECT id, deadline FROM grants WHERE deadline_iso IS NULL OR deadline_iso=''").fetchall()
+    rows = conn.execute("SELECT id, deadline, url FROM grants WHERE deadline_iso IS NULL OR deadline_iso=''").fetchall()
     for row in rows:
         try:
             dt = datetime.strptime(row[1], "%B %d, %Y")
-            conn.execute("UPDATE grants SET deadline_iso=? WHERE id=?", (dt.strftime("%Y-%m-%d"), row[0]))
+            slug = row[2].split('/op/')[-1] if '/op/' in (row[2] or '') else ''
+            conn.execute("UPDATE grants SET deadline_iso=?, slug=? WHERE id=?",
+                         (dt.strftime("%Y-%m-%d"), slug, row[0]))
         except Exception:
             pass
     conn.commit()
@@ -79,6 +83,21 @@ def logout():
 def index():
     return send_file('/app/static/index.html')
 
+@app.route('/grant/<path:slug>')
+@login_required
+def grant_detail_page(slug):
+    return send_file('/app/static/grant.html')
+
+@app.route('/api/grant/<path:slug>')
+@login_required
+def api_grant_detail(slug):
+    conn = get_db()
+    row = conn.execute("SELECT * FROM grants WHERE slug=?", (slug,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'error': 'Not found'}), 404
+    return jsonify(dict(row))
+
 @app.route('/api/grants')
 @login_required
 def api_grants():
@@ -93,7 +112,7 @@ def api_grants():
     params = []
     if search:
         query += " AND (title LIKE ? OR donor LIKE ?)"
-        params += ['%' + search + '%', '%' + search + '%']
+        params += ['%'+search+'%', '%'+search+'%']
     if donor:
         query += " AND donor=?"; params.append(donor)
     if size:
@@ -105,12 +124,12 @@ def api_grants():
         'posted_asc':    'created_at ASC',
     }
     query += " ORDER BY " + sort_map.get(sort, 'COALESCE(deadline_iso, deadline) ASC')
-    total = conn.execute("SELECT COUNT(*) FROM (" + query + ")", params).fetchone()[0]
-    query += " LIMIT " + str(per_page) + " OFFSET " + str((page - 1) * per_page)
+    total = conn.execute("SELECT COUNT(*) FROM ("+query+")", params).fetchone()[0]
+    query += " LIMIT "+str(per_page)+" OFFSET "+str((page-1)*per_page)
     grants = [dict(row) for row in conn.execute(query, params).fetchall()]
     conn.close()
     return jsonify({'grants': grants, 'total': total, 'page': page,
-                    'pages': (total + per_page - 1) // per_page,
+                    'pages': (total+per_page-1)//per_page,
                     'updated': datetime.utcnow().isoformat()})
 
 @app.route('/api/stats')
@@ -125,27 +144,29 @@ def api_stats():
 
 @app.route('/api/ingest', methods=['POST'])
 def ingest():
-    if request.headers.get('X-Secret', '') != os.environ.get('INGEST_SECRET', 'uwezogrants2026'):
-        return jsonify({'error': 'Unauthorized'}), 401
+    if request.headers.get('X-Secret','') != os.environ.get('INGEST_SECRET','uwezogrants2026'):
+        return jsonify({'error':'Unauthorized'}), 401
     grants = request.json.get('grants', [])
     conn   = get_db()
     added  = 0
     for g in grants:
-        gid = hashlib.md5((g.get('title', '') + g.get('deadline', '')).encode()).hexdigest()
+        gid  = hashlib.md5((g.get('title','')+g.get('deadline','')).encode()).hexdigest()
+        slug = g.get('url','').split('/op/')[-1] if '/op/' in g.get('url','') else ''
         try:
             deadline_iso = ''
             try:
-                deadline_iso = datetime.strptime(g.get('deadline', ''), "%B %d, %Y").strftime("%Y-%m-%d")
+                deadline_iso = datetime.strptime(g.get('deadline',''), "%B %d, %Y").strftime("%Y-%m-%d")
             except Exception:
                 pass
             conn.execute(
                 """INSERT OR IGNORE INTO grants
-                   (grant_id,title,donor,grant_size,category,posted_date,deadline,deadline_iso,url,image)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                   (grant_id,title,donor,grant_size,category,posted_date,deadline,deadline_iso,url,slug,image,description,full_text,apply_url)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (gid, g.get('title'), g.get('donorAgency'), g.get('grantSize'),
                  g.get('category'), g.get('posted'), g.get('deadline'), deadline_iso,
-                 'https://grants.fundsforngospremium.com/' + g.get('url', ''),
-                 g.get('image', '')))
+                 'https://grants.fundsforngospremium.com/'+g.get('url',''),
+                 slug, g.get('image',''),
+                 g.get('description',''), g.get('text',''), g.get('applyLink','')))
             added += 1
         except Exception:
             pass

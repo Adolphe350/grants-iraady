@@ -145,7 +145,7 @@ function loadGrants(page) {
             '<span><span class="' + dlClass + '">&#9200; ' + g.deadline + ' &mdash; ' + dlText + '</span></span>' +
           '</div>' +
         '</div>' +
-        '<div class="card-footer"><a href="' + g.url + '" target="_blank" class="btn">View &amp; Apply &rarr;</a></div>' +
+        '<div class="card-footer"><a href="/grant/' + (g.slug || g.url) + '" class="btn">View &amp; Apply &rarr;</a></div>' +
         '</div>';
     });
     grid.innerHTML = html;

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grant Detail | Grants Hub</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Segoe UI',sans-serif;background:#f0f4f8;color:#1a202c}
+  header{background:linear-gradient(135deg,#1a56db,#0d3b8e);color:white;padding:16px 32px;display:flex;align-items:center;justify-content:space-between}
+  header a{color:white;text-decoration:none;opacity:.85;font-size:.9rem;display:flex;align-items:center;gap:6px}
+  header a:hover{opacity:1}
+  .container{max-width:860px;margin:32px auto;padding:0 20px 60px}
+  .card{background:white;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.09)}
+  .hero{width:100%;height:240px;object-fit:cover;background:#e2e8f0;display:block}
+  .body{padding:28px 32px}
+  .meta-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+  .badge{display:inline-block;padding:5px 14px;border-radius:20px;font-size:.8rem;font-weight:600}
+  .badge-cat{background:#dbeafe;color:#1e40af}
+  .badge-size{background:#d1fae5;color:#065f46}
+  .badge-dl{background:#fff5f5;color:#c53030}
+  .badge-dl-ok{background:#f0fdf4;color:#166534}
+  h1{font-size:1.5rem;font-weight:700;line-height:1.4;margin-bottom:18px;color:#1a202c}
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px}
+  .info-item{background:#f8fafc;border-radius:8px;padding:12px 14px}
+  .info-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;color:#718096;margin-bottom:3px}
+  .info-value{font-size:.92rem;font-weight:600;color:#1a202c}
+  .section{margin-bottom:24px}
+  .section h2{font-size:1rem;font-weight:700;color:#1a56db;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #dbeafe}
+  .section-body{font-size:.9rem;line-height:1.75;color:#374151}
+  .section-body p{margin-bottom:10px}
+  .section-body ul{padding-left:20px}
+  .section-body li{margin-bottom:5px}
+  .apply-bar{background:#1a56db;border-radius:10px;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:8px}
+  .apply-bar p{color:white;font-size:.9rem;opacity:.9}
+  .apply-btn{background:white;color:#1a56db;padding:10px 24px;border-radius:8px;font-weight:700;font-size:.95rem;text-decoration:none;white-space:nowrap}
+  .apply-btn:hover{background:#f0f4ff}
+  .back-btn{display:inline-flex;align-items:center;gap:6px;color:#1a56db;text-decoration:none;font-size:.88rem;margin-bottom:18px}
+  .loading{text-align:center;padding:80px;color:#718096}
+  @media(max-width:600px){.info-grid{grid-template-columns:1fr}.body{padding:18px}.apply-bar{flex-direction:column;text-align:center}}
+</style>
+</head>
+<body>
+<header>
+  <a href="/">&#8592; Back to Grants Hub</a>
+  <span style="font-size:.85rem;opacity:.7">Uwezo Youth Empowerment</span>
+</header>
+
+<div class="container">
+  <div id="content"><div class="loading">Loading grant details...</div></div>
+</div>
+
+<script>
+var slug = window.location.pathname.replace('/grant/', '').replace(/\/$/, '');
+
+fetch('/api/grant/' + slug, {credentials:'include'}).then(function(r) {
+  if (r.status === 401) { window.location.href = '/login'; return null; }
+  if (r.status === 404) { document.getElementById('content').innerHTML = '<div class="loading">Grant not found.</div>'; return null; }
+  return r.json();
+}).then(function(g) {
+  if (!g) return;
+  var days = 0;
+  if (g.deadline_iso) {
+    days = Math.ceil((new Date(g.deadline_iso) - new Date()) / 86400000);
+  }
+  var dlBadge = days < 0 ? '<span class="badge badge-dl">Expired</span>' :
+                days <= 7 ? '<span class="badge badge-dl">&#9200; ' + days + ' days left</span>' :
+                            '<span class="badge badge-dl-ok">&#9200; ' + days + ' days left</span>';
+
+  var html = '<a href="/" class="back-btn">&#8592; All Grants</a>' +
+    '<div class="card">' +
+    (g.image ? '<img class="hero" src="' + g.image + '" onerror="this.style.display=\'none\'" alt="">' : '') +
+    '<div class="body">' +
+      '<div class="meta-row">' +
+        '<span class="badge badge-cat">' + (g.category || 'Grant') + '</span>' +
+        '<span class="badge badge-size">&#128176; ' + (g.grant_size || 'Size N/A') + '</span>' +
+        dlBadge +
+      '</div>' +
+      '<h1>' + g.title + '</h1>' +
+      '<div class="info-grid">' +
+        '<div class="info-item"><div class="info-label">Donor / Agency</div><div class="info-value">' + (g.donor || '—') + '</div></div>' +
+        '<div class="info-item"><div class="info-label">Deadline</div><div class="info-value">' + (g.deadline || '—') + '</div></div>' +
+        '<div class="info-item"><div class="info-label">Posted</div><div class="info-value">' + (g.posted_date || '—') + '</div></div>' +
+        '<div class="info-item"><div class="info-label">Category</div><div class="info-value">' + (g.category || '—') + '</div></div>' +
+      '</div>';
+
+  if (g.description) {
+    html += '<div class="section"><h2>About This Grant</h2><div class="section-body">' + g.description + '</div></div>';
+  }
+  if (g.full_text) {
+    html += '<div class="section"><h2>Full Details</h2><div class="section-body">' + g.full_text + '</div></div>';
+  }
+
+  html += '<div class="apply-bar">' +
+    '<p>Ready to apply? Click to open the official application page.</p>' +
+    '<a href="' + (g.apply_url || g.url) + '" target="_blank" class="apply-btn">Apply Now &#8594;</a>' +
+    '</div>' +
+    '</div></div>';
+
+  document.getElementById('content').innerHTML = html;
+  document.title = g.title + ' | Grants Hub';
+}).catch(function(e) {
+  document.getElementById('content').innerHTML = '<div class="loading">Error loading grant. <a href="/">Go back</a></div>';
+});
+</script>
+</body>
+</html>
