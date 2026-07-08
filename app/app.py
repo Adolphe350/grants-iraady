@@ -1,11 +1,16 @@
 import os, json, sqlite3, hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from flask import Flask, jsonify, render_template_string, request, session, redirect, url_for
 from flask_cors import CORS
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'g4r4nts-hub-secret-2026')
+# Keep session alive for 30 days — no re-login needed
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 CORS(app)
 
 SITE_PASSWORD = os.environ.get('SITE_PASSWORD', 'Kigali2020@')
@@ -14,6 +19,9 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get('authenticated'):
+            # Return 401 JSON for API calls, redirect for page requests
+            if request.path.startswith('/api/'):
+                return jsonify({'error': 'Unauthorized'}), 401
             return redirect(url_for('login_page'))
         return f(*args, **kwargs)
     return decorated
@@ -85,6 +93,7 @@ def login_page():
     error = False
     if request.method == "POST":
         if request.form.get("password") == SITE_PASSWORD:
+            session.permanent = True  # Use the 30-day lifetime
             session['authenticated'] = True
             return redirect(url_for('index'))
         error = True
@@ -285,7 +294,7 @@ let currentPage = 1;
 let searchTimer;
 
 async function loadStats() {
-  const r = await fetch('/api/stats');
+  const r = await fetch('/api/stats', {credentials:'include'});
   const d = await r.json();
   document.getElementById('stat-total').textContent = d.total.toLocaleString();
   document.getElementById('stat-today').textContent = d.today;
@@ -293,7 +302,10 @@ async function loadStats() {
 }
 
 async function loadFilters() {
-  const [donors, sizes] = await Promise.all([fetch('/api/donors').then(r=>r.json()), fetch('/api/sizes').then(r=>r.json())]);
+  const [donors, sizes] = await Promise.all([
+    fetch('/api/donors',{credentials:'include'}).then(r=>r.status===401?window.location.href='/login':r.json()),
+    fetch('/api/sizes',{credentials:'include'}).then(r=>r.status===401?[]:r.json())
+  ]);
   const dd = document.getElementById('donor-filter');
   donors.forEach(d => { const o=document.createElement('option'); o.value=d; o.textContent=d; dd.appendChild(o); });
   const sd = document.getElementById('size-filter');
@@ -313,7 +325,8 @@ async function loadGrants() {
   const size = document.getElementById('size-filter').value;
   
   const params = new URLSearchParams({ page: currentPage, per_page: 18, search, sort, donor, size });
-  const r = await fetch('/api/grants?' + params);
+  const r = await fetch('/api/grants?' + params, {credentials:'include'});
+  if (r.status === 401) { window.location.href = '/login'; return; }
   const data = await r.json();
   
   const grid = document.getElementById('grants-grid');
