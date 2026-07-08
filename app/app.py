@@ -158,6 +158,12 @@ def ingest():
                 deadline_iso = datetime.strptime(g.get('deadline',''), "%B %d, %Y").strftime("%Y-%m-%d")
             except Exception:
                 pass
+            # Extract official apply URL from embedded HTML text
+            import re as _re
+            text = g.get('text','') or ''
+            ext_links = [u for u in _re.findall(r'href=["\' ](https?://[^"\' >]+)["\' >]', text)
+                         if 'fundsforngos' not in u and 'fundsforngo' not in u]
+            apply_url = g.get('applyLink','') or (ext_links[0] if ext_links else '')
             conn.execute(
                 """INSERT OR IGNORE INTO grants
                    (grant_id,title,donor,grant_size,category,posted_date,deadline,deadline_iso,url,slug,image,description,full_text,apply_url)
@@ -166,7 +172,7 @@ def ingest():
                  g.get('category'), g.get('posted'), g.get('deadline'), deadline_iso,
                  'https://grants.fundsforngospremium.com/'+g.get('url',''),
                  slug, g.get('image',''),
-                 g.get('description',''), g.get('text',''), g.get('applyLink','')))
+                 g.get('description',''), text, apply_url))
             added += 1
         except Exception:
             pass
