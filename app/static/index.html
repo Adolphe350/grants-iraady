@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grants Hub | Uwezo Youth Empowerment</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Segoe UI',sans-serif;background:#f0f4f8;color:#1a202c}
+  header{background:linear-gradient(135deg,#1a56db,#0d3b8e);color:white;padding:20px 32px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 10px rgba(0,0,0,.2)}
+  header h1{font-size:1.6rem;font-weight:700}
+  header p{font-size:.85rem;opacity:.8;margin-top:4px}
+  .header-right{display:flex;align-items:center;gap:16px;font-size:.85rem}
+  .logout-btn{color:white;opacity:.8;text-decoration:none;border:1px solid rgba(255,255,255,.4);padding:5px 12px;border-radius:6px;font-size:.8rem}
+  .stats-bar{background:white;padding:14px 32px;display:flex;gap:32px;border-bottom:1px solid #e2e8f0}
+  .stat{text-align:center}
+  .stat-number{font-size:1.5rem;font-weight:700;color:#1a56db}
+  .stat-label{font-size:.72rem;color:#718096;text-transform:uppercase;letter-spacing:.5px}
+  .controls{padding:16px 32px;background:white;border-bottom:1px solid #e2e8f0;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .search-box{flex:1;min-width:220px;padding:9px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:.9rem;outline:none}
+  .search-box:focus{border-color:#1a56db;box-shadow:0 0 0 3px rgba(26,86,219,.1)}
+  select{padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:.88rem;background:white;cursor:pointer;outline:none}
+  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600}
+  .badge-grant{background:#dbeafe;color:#1e40af}
+  .badge-event{background:#fef3c7;color:#92400e}
+  .badge-other{background:#d1fae5;color:#065f46}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px;padding:20px 32px}
+  .card{background:white;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);transition:transform .2s,box-shadow .2s}
+  .card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.12)}
+  .card-img{width:100%;height:150px;object-fit:cover;background:#e2e8f0}
+  .card-body{padding:14px}
+  .card-title{font-size:.92rem;font-weight:600;line-height:1.4;margin-bottom:10px;color:#1a202c}
+  .meta{display:flex;flex-direction:column;gap:5px;font-size:.8rem;color:#4a5568}
+  .meta span{display:flex;align-items:center;gap:5px}
+  .dl{color:#c53030;font-weight:600}
+  .dl-soon{background:#fff5f5;padding:3px 7px;border-radius:5px;border:1px solid #feb2b2;color:#c53030;font-weight:600}
+  .card-footer{padding:10px 14px;border-top:1px solid #f0f4f8}
+  .btn{display:inline-block;padding:7px 16px;background:#1a56db;color:white;border-radius:7px;text-decoration:none;font-size:.83rem;font-weight:600}
+  .btn:hover{background:#1048c2}
+  .pager{display:flex;justify-content:center;gap:6px;padding:20px}
+  .pbtn{padding:7px 13px;border:1px solid #e2e8f0;border-radius:7px;cursor:pointer;background:white;font-size:.88rem}
+  .pbtn.active{background:#1a56db;color:white;border-color:#1a56db}
+  .loading{text-align:center;padding:60px;color:#718096;font-size:1rem}
+  .updated{text-align:center;padding:6px;font-size:.75rem;color:#a0aec0}
+  @media(max-width:600px){.grid{padding:10px;grid-template-columns:1fr}.controls,.stats-bar{padding:12px}header{padding:14px}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>🌍 Grants Hub</h1>
+    <p>Uwezo Youth Empowerment &mdash; Updated daily</p>
+  </div>
+  <div class="header-right">
+    <span id="hdr-count">Loading...</span>
+    <a href="/logout" class="logout-btn">Logout</a>
+  </div>
+</header>
+
+<div class="stats-bar">
+  <div class="stat"><div class="stat-number" id="s-total">—</div><div class="stat-label">Total Grants</div></div>
+  <div class="stat"><div class="stat-number" id="s-today">—</div><div class="stat-label">Added Today</div></div>
+  <div class="stat"><div class="stat-number" id="s-donors">—</div><div class="stat-label">Donors</div></div>
+</div>
+
+<div class="controls">
+  <input class="search-box" id="search" placeholder="🔍  Search grants or donors..." oninput="debounceSearch()">
+  <select id="sort" onchange="loadGrants(1)">
+    <option value="deadline_asc">Deadline: Soonest first</option>
+    <option value="deadline_desc">Deadline: Latest first</option>
+    <option value="posted_desc">Newest posted</option>
+  </select>
+  <select id="donor-filter" onchange="loadGrants(1)"><option value="">All Donors</option></select>
+  <select id="size-filter" onchange="loadGrants(1)"><option value="">All Sizes</option></select>
+</div>
+
+<div id="grid" class="grid"><div class="loading">Loading grants...</div></div>
+<div class="pager" id="pager"></div>
+<div class="updated" id="updated"></div>
+
+<script>
+var currentPage = 1;
+var searchTimer;
+
+function daysLeft(dl) {
+  var d = new Date(dl);
+  var now = new Date();
+  return Math.ceil((d - now) / 86400000);
+}
+
+function loadStats() {
+  fetch('/api/stats', {credentials:'include'}).then(function(r){ return r.json(); }).then(function(d) {
+    document.getElementById('s-total').textContent = d.total.toLocaleString();
+    document.getElementById('s-today').textContent = d.today;
+    document.getElementById('s-donors').textContent = d.donors;
+  });
+}
+
+function loadFilters() {
+  fetch('/api/donors', {credentials:'include'}).then(function(r){ return r.json(); }).then(function(list) {
+    var dd = document.getElementById('donor-filter');
+    list.forEach(function(d) { var o = document.createElement('option'); o.value = d; o.textContent = d; dd.appendChild(o); });
+  });
+  fetch('/api/sizes', {credentials:'include'}).then(function(r){ return r.json(); }).then(function(list) {
+    var sd = document.getElementById('size-filter');
+    list.forEach(function(s) { var o = document.createElement('option'); o.value = s; o.textContent = s; sd.appendChild(o); });
+  });
+}
+
+function loadGrants(page) {
+  if (page) currentPage = page;
+  var search = document.getElementById('search').value;
+  var sort   = document.getElementById('sort').value;
+  var donor  = document.getElementById('donor-filter').value;
+  var size   = document.getElementById('size-filter').value;
+  var params = 'page=' + currentPage + '&per_page=18&search=' + encodeURIComponent(search) +
+               '&sort=' + sort + '&donor=' + encodeURIComponent(donor) + '&size=' + encodeURIComponent(size);
+
+  fetch('/api/grants?' + params, {credentials:'include'}).then(function(r) {
+    if (r.status === 401) { window.location.href = '/login'; return null; }
+    return r.json();
+  }).then(function(data) {
+    if (!data) return;
+    var grid = document.getElementById('grid');
+    if (!data.grants || !data.grants.length) {
+      grid.innerHTML = '<div class="loading">No grants found.</div>';
+      return;
+    }
+    var html = '';
+    data.grants.forEach(function(g) {
+      var days = daysLeft(g.deadline_iso || g.deadline);
+      var dlClass = days <= 7 ? 'dl-soon' : 'dl';
+      var dlText  = days < 0 ? 'Expired' : days === 0 ? 'Today!' : days === 1 ? 'Tomorrow!' : days + ' days left';
+      var badge   = g.category === 'Grant' ? 'badge-grant' : g.category === 'Events' ? 'badge-event' : 'badge-other';
+      var img     = g.image ? g.image : '';
+      html += '<div class="card">' +
+        '<img class="card-img" src="' + img + '" onerror="this.style.display=\'none\'" alt="">' +
+        '<div class="card-body">' +
+          '<div style="margin-bottom:7px"><span class="badge ' + badge + '">' + (g.category || 'Grant') + '</span></div>' +
+          '<div class="card-title">' + g.title + '</div>' +
+          '<div class="meta">' +
+            '<span>&#127962; ' + (g.donor || '') + '</span>' +
+            '<span>&#128176; ' + (g.grant_size || 'Not specified') + '</span>' +
+            '<span>&#128197; Posted: ' + (g.posted_date || '') + '</span>' +
+            '<span><span class="' + dlClass + '">&#9200; ' + g.deadline + ' &mdash; ' + dlText + '</span></span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="card-footer"><a href="' + g.url + '" target="_blank" class="btn">View &amp; Apply &rarr;</a></div>' +
+        '</div>';
+    });
+    grid.innerHTML = html;
+
+    // Pagination
+    var pager = document.getElementById('pager');
+    var ph = '';
+    if (data.pages > 1) {
+      if (currentPage > 1) ph += '<button class="pbtn" onclick="loadGrants(' + (currentPage-1) + ')">&lsaquo;</button>';
+      for (var i = Math.max(1, currentPage-2); i <= Math.min(data.pages, currentPage+2); i++) {
+        ph += '<button class="pbtn' + (i === currentPage ? ' active' : '') + '" onclick="loadGrants(' + i + ')">' + i + '</button>';
+      }
+      if (currentPage < data.pages) ph += '<button class="pbtn" onclick="loadGrants(' + (currentPage+1) + ')">&rsaquo;</button>';
+    }
+    pager.innerHTML = ph;
+
+    document.getElementById('updated').textContent = 'Last synced: ' + new Date(data.updated).toLocaleString();
+    document.getElementById('hdr-count').textContent = data.total + ' grants available';
+  }).catch(function(e) {
+    document.getElementById('grid').innerHTML = '<div class="loading">Error loading grants. Please refresh.</div>';
+    console.error(e);
+  });
+}
+
+function debounceSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(function() { loadGrants(1); }, 400);
+}
+
+loadStats();
+loadFilters();
+loadGrants(1);
+</script>
+</body>
+</html>
