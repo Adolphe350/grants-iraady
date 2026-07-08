@@ -115,6 +115,13 @@ header{background:linear-gradient(135deg,#1a56db,#0d3b8e);color:white;padding:16
     </div>
 
     <div class="filter-group">
+      <label>Country</label>
+      <select id="f-country" onchange="applyFilters()">
+        <option value="">All Countries</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
       <label>Who Can Apply</label>
       <select id="f-eligible" onchange="applyFilters()">
         <option value="">Everyone</option>
@@ -182,6 +189,7 @@ function applyFilters() { currentPage = 1; loadGrants(); }
 function clearFilters() {
   document.getElementById('f-category').value = '';
   document.getElementById('f-region').value = '';
+  document.getElementById('f-country').value = '';
   document.getElementById('f-eligible').value = '';
   document.getElementById('f-size').value = '';
   document.getElementById('f-donor').value = '';
@@ -200,6 +208,7 @@ function loadGrants() {
     sort:     document.getElementById('sort').value,
     category: document.getElementById('f-category').value,
     region:   document.getElementById('f-region').value,
+    country:  document.getElementById('f-country').value,
     eligible: document.getElementById('f-eligible').value,
     size:     document.getElementById('f-size').value,
     donor:    document.getElementById('f-donor').value,
@@ -266,7 +275,7 @@ function goPage(p) { currentPage = p; loadGrants(); window.scrollTo(0,0); }
 
 function updateActiveFilters() {
   var labels = {
-    'f-category':'Type','f-region':'Region','f-eligible':'Who',
+    'f-category':'Type','f-region':'Region','f-country':'Country','f-eligible':'Who',
     'f-size':'Size','f-donor':'Donor','f-status':'Status'
   };
   var html = '';
@@ -290,7 +299,8 @@ function loadFilterOptions() {
   fetch('/api/filter-options', {credentials:'include'}).then(function(r){return r.json();}).then(function(d) {
     var opts = {
       'f-category': {items: d.categories, prefix: ''},
-      'f-region':   {items: d.regions,    prefix: '📍 '},
+      'f-region':   {items: d.regions,    prefix: '🌍 '},
+      'f-country':  {items: d.countries,  prefix: '🏳 '},
       'f-eligible': {items: d.eligible,   prefix: '👥 '},
       'f-size':     {items: d.sizes,      prefix: '💰 '},
       'f-donor':    {items: d.donors,     prefix: '🏛 '}

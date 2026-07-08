@@ -67,7 +67,7 @@ def init_db():
         region TEXT, eligible_org TEXT, status TEXT DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
-    for col in ['deadline_iso','slug','description','full_text','apply_url','region','eligible_org','status']:
+    for col in ['deadline_iso','slug','description','full_text','apply_url','region','eligible_org','status','countries']:
         try:
             conn.execute("ALTER TABLE grants ADD COLUMN " + col + " TEXT")
         except Exception:
@@ -177,6 +177,8 @@ def api_grants():
     if category: query += " AND category=?";              params.append(category)
     if region:   query += " AND region=?";                params.append(region)
     if eligible: query += " AND eligible_org LIKE ?";     params.append('%'+eligible+'%')
+    country  = request.args.get('country', '')
+    if country:  query += " AND countries LIKE ?";        params.append('%'+country+'%')
     if status and status != 'all':
         query += " AND (status=? OR status IS NULL)";     params.append(status)
 
@@ -218,8 +220,15 @@ def filter_options():
         for part in row.split(','):
             p = part.strip()
             if p: elig_set.add(p)
+    # Countries — split comma-separated values, collect unique
+    country_rows = [r[0] for r in conn.execute("SELECT DISTINCT countries FROM grants WHERE countries IS NOT NULL AND countries != '' AND countries != 'Global' ORDER BY countries").fetchall()]
+    country_set  = set()
+    for row in country_rows:
+        for part in row.split(','):
+            p = part.strip()
+            if p and p != 'Global': country_set.add(p)
     conn.close()
-    return jsonify({'categories':categories,'regions':regions,'sizes':sizes,'donors':donors,'eligible':sorted(elig_set)})
+    return jsonify({'categories':categories,'regions':regions,'sizes':sizes,'donors':donors,'eligible':sorted(elig_set),'countries':sorted(country_set)})
 
 @app.route('/api/ingest', methods=['POST'])
 def ingest():
@@ -248,16 +257,21 @@ def ingest():
             combined  = text + ' ' + (g.get('description','') or '')
             region    = detect_region(combined)
             eligible  = detect_eligible_org(combined)
+            # Extract country mentions
+            import re as _re2
+            _COUNTRIES = ['Afghanistan','Albania','Algeria','Angola','Argentina','Armenia','Australia','Austria','Azerbaijan','Bangladesh','Belarus','Belgium','Benin','Bolivia','Bosnia','Botswana','Brazil','Bulgaria','Burkina Faso','Burundi','Cambodia','Cameroon','Canada','Chad','Chile','China','Colombia','Congo','Costa Rica','Croatia','Cuba','Denmark','Dominican Republic','DR Congo','Ecuador','Egypt','El Salvador','Ethiopia','Finland','France','Gambia','Georgia','Germany','Ghana','Greece','Guatemala','Guinea','Haiti','Honduras','Hungary','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Jamaica','Japan','Jordan','Kazakhstan','Kenya','Kosovo','Kyrgyzstan','Laos','Lebanon','Lesotho','Liberia','Libya','Madagascar','Malawi','Malaysia','Mali','Mauritania','Mexico','Moldova','Mongolia','Montenegro','Morocco','Mozambique','Myanmar','Namibia','Nepal','Netherlands','Nicaragua','Niger','Nigeria','North Macedonia','Norway','Pakistan','Palestine','Panama','Papua New Guinea','Paraguay','Peru','Philippines','Poland','Portugal','Romania','Russia','Rwanda','Senegal','Serbia','Sierra Leone','Somalia','South Africa','South Sudan','Spain','Sri Lanka','Sudan','Sweden','Switzerland','Syria','Tajikistan','Tanzania','Thailand','Timor-Leste','Togo','Tunisia','Turkey','Turkmenistan','Uganda','Ukraine','United Kingdom','United States','Uruguay','Uzbekistan','Venezuela','Vietnam','Yemen','Zambia','Zimbabwe']
+            _cl = combined.lower()
+            countries = ', '.join([c for c in _COUNTRIES if _re2.search(r'\b'+_re2.escape(c.lower())+r'\b', _cl)]) or 'Global'
             conn.execute(
                 """INSERT OR IGNORE INTO grants
                    (grant_id,title,donor,grant_size,category,posted_date,deadline,deadline_iso,
-                    url,slug,image,description,full_text,apply_url,region,eligible_org,status)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    url,slug,image,description,full_text,apply_url,region,eligible_org,status,countries)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (gid, g.get('title'), g.get('donorAgency'), g.get('grantSize'),
                  g.get('category'), g.get('posted'), g.get('deadline'), deadline_iso,
                  'https://grants.fundsforngospremium.com/'+g.get('url',''),
                  slug, g.get('image',''), g.get('description',''), text,
-                 apply_url, region, eligible, 'active'))
+                 apply_url, region, eligible, 'active', countries))
             added += 1
         except Exception:
             pass
