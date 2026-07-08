@@ -1,0 +1,17 @@
+version: "3.8"
+services:
+  grants:
+    build: ./app
+    container_name: grants-iraady
+    restart: unless-stopped
+    ports:
+      - "5041:5000"
+    volumes:
+      - grants_data:/data
+    environment:
+      - INGEST_SECRET=uwezogrants2026
+    labels:
+      - "coolify.managed=true"
+
+volumes:
+  grants_data:
