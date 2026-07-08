@@ -10,6 +10,8 @@ services:
       - grants_data:/data
     environment:
       - INGEST_SECRET=uwezogrants2026
+      - SITE_PASSWORD=Kigali2020@
+      - SECRET_KEY=g4r4nts-kigali-session-2026
     labels:
       - "coolify.managed=true"
 

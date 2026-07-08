@@ -1,10 +1,22 @@
 import os, json, sqlite3, hashlib
 from datetime import datetime
-from flask import Flask, jsonify, render_template_string, request
+from functools import wraps
+from flask import Flask, jsonify, render_template_string, request, session, redirect, url_for
 from flask_cors import CORS
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'g4r4nts-hub-secret-2026')
 CORS(app)
+
+SITE_PASSWORD = os.environ.get('SITE_PASSWORD', 'Kigali2020@')
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('authenticated'):
+            return redirect(url_for('login_page'))
+        return f(*args, **kwargs)
+    return decorated
 
 DB_PATH = "/data/grants.db"
 
@@ -34,11 +46,62 @@ def init_db():
     conn.commit()
     conn.close()
 
+LOGIN_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grants Hub | Login</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',sans-serif; background:linear-gradient(135deg,#1a56db 0%,#0d3b8e 100%); min-height:100vh; display:flex; align-items:center; justify-content:center; }
+  .box { background:white; border-radius:16px; padding:48px 40px; width:100%; max-width:420px; box-shadow:0 20px 60px rgba(0,0,0,0.3); text-align:center; }
+  .logo { font-size:3rem; margin-bottom:12px; }
+  h1 { color:#1a202c; font-size:1.5rem; margin-bottom:6px; }
+  p { color:#718096; font-size:0.9rem; margin-bottom:32px; }
+  input { width:100%; padding:14px 16px; border:2px solid #e2e8f0; border-radius:10px; font-size:1rem; outline:none; margin-bottom:16px; transition:border 0.2s; }
+  input:focus { border-color:#1a56db; }
+  button { width:100%; padding:14px; background:#1a56db; color:white; border:none; border-radius:10px; font-size:1rem; font-weight:600; cursor:pointer; transition:background 0.2s; }
+  button:hover { background:#1048c2; }
+  .error { background:#fff5f5; color:#c53030; border:1px solid #feb2b2; border-radius:8px; padding:10px 14px; margin-bottom:16px; font-size:0.88rem; }
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="logo">🌍</div>
+  <h1>Grants Hub</h1>
+  <p>Uwezo Youth Empowerment<br>Enter the password to access</p>
+  {% if error %}<div class="error">❌ Incorrect password. Try again.</div>{% endif %}
+  <form method="POST" action="/login">
+    <input type="password" name="password" placeholder="Enter password..." autofocus required>
+    <button type="submit">Access Grants →</button>
+  </form>
+</div>
+</body>
+</html>"""
+
+@app.route("/login", methods=["GET", "POST"])
+def login_page():
+    error = False
+    if request.method == "POST":
+        if request.form.get("password") == SITE_PASSWORD:
+            session['authenticated'] = True
+            return redirect(url_for('index'))
+        error = True
+    return render_template_string(LOGIN_TEMPLATE, error=error)
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for('login_page'))
+
 @app.route("/")
+@login_required
 def index():
     return render_template_string(HTML_TEMPLATE)
 
 @app.route("/api/grants")
+@login_required
 def api_grants():
     conn = get_db()
     page = int(request.args.get("page", 1))
@@ -83,6 +146,7 @@ def api_grants():
     })
 
 @app.route("/api/stats")
+@login_required
 def api_stats():
     conn = get_db()
     total = conn.execute("SELECT COUNT(*) FROM grants").fetchone()[0]
@@ -117,6 +181,7 @@ def ingest():
     return jsonify({"added": added, "total": len(grants)})
 
 @app.route("/api/donors")
+@login_required
 def donors():
     conn = get_db()
     rows = conn.execute("SELECT DISTINCT donor FROM grants ORDER BY donor").fetchall()
@@ -124,6 +189,7 @@ def donors():
     return jsonify([r[0] for r in rows])
 
 @app.route("/api/sizes")
+@login_required
 def sizes():
     conn = get_db()
     rows = conn.execute("SELECT DISTINCT grant_size FROM grants ORDER BY grant_size").fetchall()
@@ -182,8 +248,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <h1>🌍 Grants Hub</h1>
     <p>Uwezo Youth Empowerment | Updated daily from fundsforNGOs Premium</p>
   </div>
-  <div style="text-align:right; font-size:0.85rem; opacity:0.9">
+  <div style="text-align:right; font-size:0.85rem; opacity:0.9; display:flex; align-items:center; gap:16px;">
     <div id="last-updated">Loading...</div>
+    <a href="/logout" style="color:white;opacity:0.7;text-decoration:none;font-size:0.8rem;border:1px solid rgba(255,255,255,0.4);padding:5px 12px;border-radius:6px;">Logout</a>
   </div>
 </header>
 
