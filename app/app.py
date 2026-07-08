@@ -179,7 +179,7 @@ def api_stats():
 def filter_options():
     conn = get_db()
     categories = [r[0] for r in conn.execute("SELECT DISTINCT category FROM grants WHERE category IS NOT NULL ORDER BY category").fetchall()]
-    regions    = [r[0] for r in conn.execute("SELECT DISTINCT region FROM grants WHERE region IS NOT NULL ORDER BY region").fetchall()]
+    regions    = sorted(set(r[0].title() for r in conn.execute("SELECT DISTINCT region FROM grants WHERE region IS NOT NULL").fetchall() if r[0]))
     sizes      = [r[0] for r in conn.execute("SELECT DISTINCT grant_size FROM grants WHERE grant_size IS NOT NULL ORDER BY grant_size").fetchall()]
     donors     = [r[0] for r in conn.execute("SELECT DISTINCT donor FROM grants WHERE donor IS NOT NULL ORDER BY donor").fetchall()]
     # eligible_org can be multi-value; collect unique tokens
