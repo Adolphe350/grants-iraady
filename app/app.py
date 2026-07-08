@@ -26,10 +26,13 @@ def detect_region(text):
     for r in REGIONS:
         if r.lower() in t: return r
     country_map = {
-        'africa':['rwanda','kenya','nigeria','ghana','ethiopia','tanzania','uganda','zambia','malawi','mozambique','cameroon','senegal','mali','niger','chad','sudan','angola','zimbabwe','botswana','namibia','lesotho','swaziland','eswatini','south africa','egypt','morocco','tunisia','algeria','libya'],
-        'Asia':['india','china','bangladesh','pakistan','nepal','sri lanka','myanmar','vietnam','thailand','indonesia','philippines','cambodia','laos','malaysia'],
-        'Americas':['united states','usa','canada','brazil','mexico','colombia','peru','chile','argentina','venezuela'],
-        'Europe':['europe','european','uk','united kingdom','france','germany','spain','italy','netherlands','sweden'],
+        'Africa': ['rwanda','kenya','nigeria','ghana','ethiopia','tanzania','uganda','zambia','malawi',
+                   'mozambique','cameroon','senegal','mali','niger','chad','sudan','angola','zimbabwe',
+                   'botswana','namibia','lesotho','eswatini','south africa','egypt','morocco','tunisia','algeria'],
+        'Asia':   ['india','china','bangladesh','pakistan','nepal','sri lanka','myanmar','vietnam',
+                   'thailand','indonesia','philippines','cambodia','laos','malaysia'],
+        'Americas':['united states','usa','canada','brazil','mexico','colombia','peru','chile','argentina'],
+        'Europe': ['europe','european','uk','united kingdom','france','germany','spain','italy','netherlands','sweden'],
     }
     for region, countries in country_map.items():
         for c in countries:
@@ -61,26 +64,46 @@ def init_db():
         grant_size TEXT, category TEXT, posted_date TEXT,
         deadline TEXT, deadline_iso TEXT, url TEXT, image TEXT,
         slug TEXT, description TEXT, full_text TEXT, apply_url TEXT,
-        region TEXT, eligible_org TEXT,
+        region TEXT, eligible_org TEXT, status TEXT DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
-    for col in ['deadline_iso','slug','description','full_text','apply_url','region','eligible_org']:
-        try: conn.execute("ALTER TABLE grants ADD COLUMN " + col + " TEXT")
-        except: pass
+    for col in ['deadline_iso','slug','description','full_text','apply_url','region','eligible_org','status']:
+        try:
+            conn.execute("ALTER TABLE grants ADD COLUMN " + col + " TEXT")
+        except Exception:
+            pass
     conn.commit()
-    # Backfill region/eligible_org for existing rows
-    rows = conn.execute("SELECT id, deadline, url, full_text, description FROM grants WHERE region IS NULL OR region=''").fetchall()
+
+    today_iso = datetime.utcnow().strftime("%Y-%m-%d")
+
+    # Backfill region/eligible_org/status for rows missing them
+    rows = conn.execute(
+        "SELECT id, deadline, url, full_text, description, deadline_iso FROM grants WHERE region IS NULL OR region=''"
+    ).fetchall()
     for row in rows:
         text = (row[3] or '') + ' ' + (row[4] or '')
         slug = row[2].split('/op/')[-1] if '/op/' in (row[2] or '') else ''
-        deadline_iso = ''
-        try:
-            deadline_iso = datetime.strptime(row[1], "%B %d, %Y").strftime("%Y-%m-%d")
-        except: pass
-        region = detect_region(text)
+        deadline_iso = row[5] or ''
+        if not deadline_iso:
+            try:
+                deadline_iso = datetime.strptime(row[1], "%B %d, %Y").strftime("%Y-%m-%d")
+            except Exception:
+                pass
+        region   = detect_region(text)
         eligible = detect_eligible_org(text)
-        conn.execute("UPDATE grants SET region=?, eligible_org=?, deadline_iso=COALESCE(NULLIF(deadline_iso,''),?), slug=COALESCE(NULLIF(slug,''),?) WHERE id=?",
-                     (region, eligible, deadline_iso, slug, row[0]))
+        status   = 'expired' if (deadline_iso and deadline_iso < today_iso) else 'active'
+        conn.execute(
+            "UPDATE grants SET region=?, eligible_org=?, deadline_iso=COALESCE(NULLIF(deadline_iso,''),?), slug=COALESCE(NULLIF(slug,''),?), status=? WHERE id=?",
+            (region, eligible, deadline_iso, slug, status, row[0])
+        )
+
+    # Every startup: move any grants whose deadline has now passed to 'expired'
+    conn.execute(
+        "UPDATE grants SET status='expired' WHERE deadline_iso IS NOT NULL AND deadline_iso != '' AND deadline_iso < ? AND (status IS NULL OR status != 'expired')",
+        (today_iso,)
+    )
+    # Ensure no nulls
+    conn.execute("UPDATE grants SET status='active' WHERE status IS NULL OR status = ''")
     conn.commit()
     conn.close()
 
@@ -131,7 +154,7 @@ def api_grant_detail(slug):
 @app.route('/api/grants')
 @login_required
 def api_grants():
-    conn = get_db()
+    conn     = get_db()
     page     = int(request.args.get('page', 1))
     per_page = int(request.args.get('per_page', 18))
     search   = request.args.get('search', '').strip()
@@ -141,16 +164,22 @@ def api_grants():
     category = request.args.get('category', '')
     region   = request.args.get('region', '')
     eligible = request.args.get('eligible', '')
+    # Default: show active only. Pass status=expired to see expired, status=all to see everything.
+    status   = request.args.get('status', 'active')
+
     query  = "SELECT * FROM grants WHERE 1=1"
     params = []
     if search:
         query += " AND (title LIKE ? OR donor LIKE ? OR description LIKE ?)"
         params += ['%'+search+'%','%'+search+'%','%'+search+'%']
-    if donor:    query += " AND donor=?";          params.append(donor)
-    if size:     query += " AND grant_size=?";     params.append(size)
-    if category: query += " AND category=?";       params.append(category)
-    if region:   query += " AND region=?";         params.append(region)
-    if eligible: query += " AND eligible_org LIKE ?"; params.append('%'+eligible+'%')
+    if donor:    query += " AND donor=?";                 params.append(donor)
+    if size:     query += " AND grant_size=?";            params.append(size)
+    if category: query += " AND category=?";              params.append(category)
+    if region:   query += " AND region=?";                params.append(region)
+    if eligible: query += " AND eligible_org LIKE ?";     params.append('%'+eligible+'%')
+    if status and status != 'all':
+        query += " AND (status=? OR status IS NULL)";     params.append(status)
+
     sort_map = {
         'deadline_asc':  'COALESCE(deadline_iso, deadline) ASC',
         'deadline_desc': 'COALESCE(deadline_iso, deadline) DESC',
@@ -158,7 +187,7 @@ def api_grants():
         'posted_asc':    'created_at ASC',
     }
     query += " ORDER BY " + sort_map.get(sort, 'COALESCE(deadline_iso, deadline) ASC')
-    total = conn.execute("SELECT COUNT(*) FROM (" + query + ")", params).fetchone()[0]
+    total  = conn.execute("SELECT COUNT(*) FROM (" + query + ")", params).fetchone()[0]
     query += " LIMIT " + str(per_page) + " OFFSET " + str((page-1)*per_page)
     grants = [dict(row) for row in conn.execute(query, params).fetchall()]
     conn.close()
@@ -167,22 +196,22 @@ def api_grants():
 @app.route('/api/stats')
 @login_required
 def api_stats():
-    conn = get_db()
-    total  = conn.execute("SELECT COUNT(*) FROM grants").fetchone()[0]
-    today  = conn.execute("SELECT COUNT(*) FROM grants WHERE date(created_at)=date('now')").fetchone()[0]
-    donors = conn.execute("SELECT COUNT(DISTINCT donor) FROM grants").fetchone()[0]
+    conn    = get_db()
+    total   = conn.execute("SELECT COUNT(*) FROM grants").fetchone()[0]
+    active  = conn.execute("SELECT COUNT(*) FROM grants WHERE status='active' OR status IS NULL").fetchone()[0]
+    expired = conn.execute("SELECT COUNT(*) FROM grants WHERE status='expired'").fetchone()[0]
+    donors  = conn.execute("SELECT COUNT(DISTINCT donor) FROM grants").fetchone()[0]
     conn.close()
-    return jsonify({'total':total,'today':today,'donors':donors})
+    return jsonify({'total':total,'active':active,'expired':expired,'donors':donors})
 
 @app.route('/api/filter-options')
 @login_required
 def filter_options():
-    conn = get_db()
+    conn       = get_db()
     categories = [r[0] for r in conn.execute("SELECT DISTINCT category FROM grants WHERE category IS NOT NULL ORDER BY category").fetchall()]
     regions    = sorted(set(r[0].title() for r in conn.execute("SELECT DISTINCT region FROM grants WHERE region IS NOT NULL").fetchall() if r[0]))
     sizes      = [r[0] for r in conn.execute("SELECT DISTINCT grant_size FROM grants WHERE grant_size IS NOT NULL ORDER BY grant_size").fetchall()]
     donors     = [r[0] for r in conn.execute("SELECT DISTINCT donor FROM grants WHERE donor IS NOT NULL ORDER BY donor").fetchall()]
-    # eligible_org can be multi-value; collect unique tokens
     elig_rows  = [r[0] for r in conn.execute("SELECT DISTINCT eligible_org FROM grants WHERE eligible_org IS NOT NULL AND eligible_org != ''").fetchall()]
     elig_set   = set()
     for row in elig_rows:
@@ -199,47 +228,47 @@ def ingest():
     grants = request.json.get('grants', [])
     conn   = get_db()
     added  = 0
+    today_iso = datetime.utcnow().strftime("%Y-%m-%d")
     for g in grants:
         gid  = hashlib.md5((g.get('title','')+g.get('deadline','')).encode()).hexdigest()
         slug = g.get('url','').split('/op/')[-1] if '/op/' in g.get('url','') else ''
         try:
             deadline_iso = ''
-            try: deadline_iso = datetime.strptime(g.get('deadline',''), "%B %d, %Y").strftime("%Y-%m-%d")
-            except: pass
-            text = g.get('text','') or ''
-            ext_links = [u for u in re.findall(r'href=["\'](https?://[^"\'>]+)["\']', text) if 'fundsforngos' not in u and 'fundsforngo' not in u]
-            apply_url  = g.get('applyLink','') or (ext_links[0] if ext_links else '')
-            combined   = text + ' ' + (g.get('description','') or '')
-            region     = detect_region(combined)
-            eligible   = detect_eligible_org(combined)
-            conn.execute("""INSERT OR IGNORE INTO grants
-                (grant_id,title,donor,grant_size,category,posted_date,deadline,deadline_iso,url,slug,image,description,full_text,apply_url,region,eligible_org)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            try:
+                deadline_iso = datetime.strptime(g.get('deadline',''), "%B %d, %Y").strftime("%Y-%m-%d")
+            except Exception:
+                pass
+            # Skip inserting new grants that are already expired
+            if deadline_iso and deadline_iso < today_iso:
+                continue
+            text      = g.get('text','') or ''
+            ext_links = [u for u in re.findall(r'href=["\'](https?://[^"\'>]+)["\']', text)
+                         if 'fundsforngos' not in u and 'fundsforngo' not in u]
+            apply_url = g.get('applyLink','') or (ext_links[0] if ext_links else '')
+            combined  = text + ' ' + (g.get('description','') or '')
+            region    = detect_region(combined)
+            eligible  = detect_eligible_org(combined)
+            conn.execute(
+                """INSERT OR IGNORE INTO grants
+                   (grant_id,title,donor,grant_size,category,posted_date,deadline,deadline_iso,
+                    url,slug,image,description,full_text,apply_url,region,eligible_org,status)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (gid, g.get('title'), g.get('donorAgency'), g.get('grantSize'),
                  g.get('category'), g.get('posted'), g.get('deadline'), deadline_iso,
                  'https://grants.fundsforngospremium.com/'+g.get('url',''),
-                 slug, g.get('image',''), g.get('description',''), text, apply_url, region, eligible))
+                 slug, g.get('image',''), g.get('description',''), text,
+                 apply_url, region, eligible, 'active'))
             added += 1
-        except: pass
+        except Exception:
+            pass
+    # Also mark any existing grants that just expired
+    conn.execute(
+        "UPDATE grants SET status='expired' WHERE deadline_iso IS NOT NULL AND deadline_iso != '' AND deadline_iso < ? AND status != 'expired'",
+        (today_iso,)
+    )
     conn.commit()
     conn.close()
     return jsonify({'added':added,'total':len(grants)})
-
-@app.route('/api/donors')
-@login_required
-def donors():
-    conn = get_db()
-    rows = conn.execute("SELECT DISTINCT donor FROM grants ORDER BY donor").fetchall()
-    conn.close()
-    return jsonify([r[0] for r in rows if r[0]])
-
-@app.route('/api/sizes')
-@login_required
-def sizes():
-    conn = get_db()
-    rows = conn.execute("SELECT DISTINCT grant_size FROM grants ORDER BY grant_size").fetchall()
-    conn.close()
-    return jsonify([r[0] for r in rows if r[0]])
 
 init_db()
 

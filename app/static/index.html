@@ -87,7 +87,8 @@ header{background:linear-gradient(135deg,#1a56db,#0d3b8e);color:white;padding:16
     <p>Uwezo Youth Empowerment — Live Opportunities</p>
   </div>
   <div class="header-right">
-    <span class="stat-chip" id="stat-total">— grants</span>
+    <span class="stat-chip" id="stat-active">— active</span>
+    <span class="stat-chip" id="stat-total" style="opacity:.7">— total</span>
     <span class="stat-chip" id="stat-donors">— donors</span>
     <a href="/logout" class="logout-btn">Logout</a>
   </div>
@@ -136,6 +137,15 @@ header{background:linear-gradient(135deg,#1a56db,#0d3b8e);color:white;padding:16
     </div>
 
     <button class="clear-filters" onclick="clearFilters()">✕ Clear All Filters</button>
+
+    <div class="filter-group" style="margin-top:18px">
+      <label>Status</label>
+      <select id="f-status" onchange="applyFilters()">
+        <option value="active">✅ Active Only</option>
+        <option value="expired">⏰ Expired</option>
+        <option value="all">📋 All Grants</option>
+      </select>
+    </div>
   </div>
 
   <!-- MAIN CONTENT -->
@@ -176,6 +186,7 @@ function clearFilters() {
   document.getElementById('f-eligible').value = '';
   document.getElementById('f-size').value = '';
   document.getElementById('f-donor').value = '';
+  document.getElementById('f-status').value = 'active';
   document.getElementById('search').value = '';
   document.getElementById('sort').value = 'deadline_asc';
   currentPage = 1;
@@ -192,7 +203,8 @@ function loadGrants() {
     region:   document.getElementById('f-region').value,
     eligible: document.getElementById('f-eligible').value,
     size:     document.getElementById('f-size').value,
-    donor:    document.getElementById('f-donor').value
+    donor:    document.getElementById('f-donor').value,
+    status:   document.getElementById('f-status').value
   });
   document.getElementById('grants-grid').innerHTML = '<div class="loading">Loading...</div>';
   fetch('/api/grants?' + params, {credentials:'include'})
@@ -210,13 +222,16 @@ function loadGrants() {
       d.grants.forEach(function(g) {
         var days = 0;
         if (g.deadline_iso) days = Math.ceil((new Date(g.deadline_iso)-new Date())/86400000);
-        var dlBadge = g.deadline_iso
-          ? (days < 0 ? '<span class="badge badge-dl">Expired</span>'
-             : days<=7 ? '<span class="badge badge-dl">⏰ '+days+'d left</span>'
-             : '<span class="badge badge-dl-ok">📅 '+days+'d left</span>')
-          : '';
+        var isExpired = g.status === 'expired';
+        var dlBadge = isExpired
+          ? '<span class="badge badge-dl">⛔ Expired</span>'
+          : g.deadline_iso
+            ? (days<=7 ? '<span class="badge badge-dl">⏰ '+days+'d left</span>'
+               : '<span class="badge badge-dl-ok">📅 '+days+'d left</span>')
+            : '';
         var link = g.slug ? '/grant/'+g.slug : g.url;
-        html += '<div class="card" onclick="window.location=\''+link+'\'">'
+        var expiredOverlay = isExpired ? ' style="opacity:.65"' : '';
+        html += '<div class="card"'+expiredOverlay+' onclick="window.location=\''+link+'\'">'
           + (g.image
             ? '<div class="card-img"><img src="'+g.image+'" onerror="this.parentNode.innerHTML=\'<div class=card-img-placeholder>🌍</div>\'" alt=""></div>'
             : '<div class="card-img"><div class="card-img-placeholder">🌍</div></div>')
@@ -253,7 +268,7 @@ function goPage(p) { currentPage = p; loadGrants(); window.scrollTo(0,0); }
 function updateActiveFilters() {
   var labels = {
     'f-category':'Type','f-region':'Region','f-eligible':'Who',
-    'f-size':'Size','f-donor':'Donor'
+    'f-size':'Size','f-donor':'Donor','f-status':'Status'
   };
   var html = '';
   for (var id in labels) {
@@ -299,7 +314,8 @@ function loadFilterOptions() {
 
 function loadStats() {
   fetch('/api/stats', {credentials:'include'}).then(function(r){return r.json();}).then(function(d) {
-    document.getElementById('stat-total').textContent = d.total + ' grants';
+    document.getElementById('stat-active').textContent = d.active + ' active';
+    document.getElementById('stat-total').textContent = d.total + ' total';
     document.getElementById('stat-donors').textContent = d.donors + ' donors';
   });
 }
