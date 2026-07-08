@@ -3,181 +3,310 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Grants Hub | Uwezo Youth Empowerment</title>
+<title>Grants Hub | Uwezo Youth</title>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Segoe UI',sans-serif;background:#f0f4f8;color:#1a202c}
-  header{background:linear-gradient(135deg,#1a56db,#0d3b8e);color:white;padding:20px 32px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 10px rgba(0,0,0,.2)}
-  header h1{font-size:1.6rem;font-weight:700}
-  header p{font-size:.85rem;opacity:.8;margin-top:4px}
-  .header-right{display:flex;align-items:center;gap:16px;font-size:.85rem}
-  .logout-btn{color:white;opacity:.8;text-decoration:none;border:1px solid rgba(255,255,255,.4);padding:5px 12px;border-radius:6px;font-size:.8rem}
-  .stats-bar{background:white;padding:14px 32px;display:flex;gap:32px;border-bottom:1px solid #e2e8f0}
-  .stat{text-align:center}
-  .stat-number{font-size:1.5rem;font-weight:700;color:#1a56db}
-  .stat-label{font-size:.72rem;color:#718096;text-transform:uppercase;letter-spacing:.5px}
-  .controls{padding:16px 32px;background:white;border-bottom:1px solid #e2e8f0;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-  .search-box{flex:1;min-width:220px;padding:9px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:.9rem;outline:none}
-  .search-box:focus{border-color:#1a56db;box-shadow:0 0 0 3px rgba(26,86,219,.1)}
-  select{padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:.88rem;background:white;cursor:pointer;outline:none}
-  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600}
-  .badge-grant{background:#dbeafe;color:#1e40af}
-  .badge-event{background:#fef3c7;color:#92400e}
-  .badge-other{background:#d1fae5;color:#065f46}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px;padding:20px 32px}
-  .card{background:white;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);transition:transform .2s,box-shadow .2s}
-  .card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.12)}
-  .card-img{width:100%;height:150px;object-fit:cover;background:#e2e8f0}
-  .card-body{padding:14px}
-  .card-title{font-size:.92rem;font-weight:600;line-height:1.4;margin-bottom:10px;color:#1a202c}
-  .meta{display:flex;flex-direction:column;gap:5px;font-size:.8rem;color:#4a5568}
-  .meta span{display:flex;align-items:center;gap:5px}
-  .dl{color:#c53030;font-weight:600}
-  .dl-soon{background:#fff5f5;padding:3px 7px;border-radius:5px;border:1px solid #feb2b2;color:#c53030;font-weight:600}
-  .card-footer{padding:10px 14px;border-top:1px solid #f0f4f8}
-  .btn{display:inline-block;padding:7px 16px;background:#1a56db;color:white;border-radius:7px;text-decoration:none;font-size:.83rem;font-weight:600}
-  .btn:hover{background:#1048c2}
-  .pager{display:flex;justify-content:center;gap:6px;padding:20px}
-  .pbtn{padding:7px 13px;border:1px solid #e2e8f0;border-radius:7px;cursor:pointer;background:white;font-size:.88rem}
-  .pbtn.active{background:#1a56db;color:white;border-color:#1a56db}
-  .loading{text-align:center;padding:60px;color:#718096;font-size:1rem}
-  .updated{text-align:center;padding:6px;font-size:.75rem;color:#a0aec0}
-  @media(max-width:600px){.grid{padding:10px;grid-template-columns:1fr}.controls,.stats-bar{padding:12px}header{padding:14px}}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',sans-serif;background:#f0f4f8;color:#1a202c}
+header{background:linear-gradient(135deg,#1a56db,#0d3b8e);color:white;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.header-left h1{font-size:1.2rem;font-weight:700}
+.header-left p{font-size:.8rem;opacity:.75;margin-top:2px}
+.header-right{display:flex;gap:12px;align-items:center}
+.stat-chip{background:rgba(255,255,255,.15);border-radius:20px;padding:5px 14px;font-size:.82rem;font-weight:600}
+.logout-btn{color:rgba(255,255,255,.7);font-size:.8rem;text-decoration:none;padding:5px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.3)}
+.logout-btn:hover{background:rgba(255,255,255,.1)}
+
+.main{display:flex;gap:0;min-height:calc(100vh - 62px)}
+
+/* SIDEBAR FILTERS */
+.sidebar{width:260px;min-width:220px;background:white;border-right:1px solid #e2e8f0;padding:20px 16px;overflow-y:auto;flex-shrink:0}
+.sidebar h2{font-size:.85rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#4a5568;margin-bottom:14px}
+.filter-group{margin-bottom:20px}
+.filter-group label{display:block;font-size:.78rem;font-weight:600;color:#718096;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.filter-group select,.filter-group input[type=text]{width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:.85rem;color:#1a202c;background:white;cursor:pointer}
+.filter-group select:focus,.filter-group input:focus{outline:none;border-color:#1a56db}
+.clear-filters{display:block;width:100%;padding:9px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:.82rem;color:#4a5568;cursor:pointer;text-align:center;margin-top:4px}
+.clear-filters:hover{background:#edf2f7}
+.active-filters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.filter-tag{display:inline-flex;align-items:center;gap:5px;background:#dbeafe;color:#1e40af;padding:3px 10px;border-radius:12px;font-size:.78rem;font-weight:600}
+.filter-tag span{cursor:pointer;opacity:.7;font-size:1rem;line-height:1}
+.filter-tag span:hover{opacity:1}
+
+/* CONTENT AREA */
+.content{flex:1;padding:20px;overflow-x:hidden}
+.top-bar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.search-box{flex:1;min-width:200px;position:relative}
+.search-box input{width:100%;padding:10px 14px 10px 38px;border:1px solid #e2e8f0;border-radius:10px;font-size:.9rem;background:white}
+.search-box input:focus{outline:none;border-color:#1a56db;box-shadow:0 0 0 3px rgba(26,86,219,.1)}
+.search-box svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);opacity:.4}
+.sort-select{padding:9px 12px;border:1px solid #e2e8f0;border-radius:10px;font-size:.85rem;background:white;cursor:pointer}
+.results-info{font-size:.82rem;color:#718096;white-space:nowrap}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.card{background:white;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07);transition:transform .15s,box-shadow .15s;display:flex;flex-direction:column;cursor:pointer}
+.card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.1)}
+.card-img{height:150px;overflow:hidden;background:#e2e8f0;position:relative}
+.card-img img{width:100%;height:100%;object-fit:cover}
+.card-img-placeholder{width:100%;height:100%;background:linear-gradient(135deg,#1a56db22,#1a56db44);display:flex;align-items:center;justify-content:center;font-size:2rem}
+.card-body{padding:14px 16px;flex:1;display:flex;flex-direction:column;gap:8px}
+.card-badges{display:flex;flex-wrap:wrap;gap:5px}
+.badge{display:inline-block;padding:3px 9px;border-radius:10px;font-size:.72rem;font-weight:600}
+.badge-cat{background:#dbeafe;color:#1e40af}
+.badge-size{background:#d1fae5;color:#065f46}
+.badge-dl{background:#fff5f5;color:#c53030}
+.badge-dl-ok{background:#f0fdf4;color:#166534}
+.badge-region{background:#fef3c7;color:#92400e}
+.badge-eligible{background:#f3e8ff;color:#6b21a8}
+.card-title{font-size:.92rem;font-weight:700;color:#1a202c;line-height:1.4;flex:1}
+.card-donor{font-size:.78rem;color:#718096;display:flex;align-items:center;gap:4px}
+.card-footer{margin-top:auto;padding-top:10px;border-top:1px solid #f0f4f8}
+.btn{display:block;text-align:center;background:#1a56db;color:white;padding:8px 14px;border-radius:8px;font-size:.82rem;font-weight:600;text-decoration:none;transition:background .15s}
+.btn:hover{background:#1347c0}
+
+.pagination{display:flex;justify-content:center;gap:6px;margin-top:24px;flex-wrap:wrap}
+.page-btn{padding:7px 13px;border:1px solid #e2e8f0;background:white;border-radius:8px;font-size:.85rem;cursor:pointer;color:#4a5568}
+.page-btn:hover,.page-btn.active{background:#1a56db;color:white;border-color:#1a56db}
+.loading{text-align:center;padding:60px;color:#718096}
+.empty{text-align:center;padding:60px}
+.empty h3{font-size:1.1rem;color:#4a5568;margin-bottom:8px}
+.empty p{color:#718096;font-size:.85rem}
+
+@media(max-width:768px){
+  .main{flex-direction:column}
+  .sidebar{width:100%;border-right:none;border-bottom:1px solid #e2e8f0;display:flex;flex-wrap:wrap;gap:10px;padding:12px}
+  .sidebar h2{width:100%;margin-bottom:0}
+  .filter-group{flex:1;min-width:140px;margin-bottom:0}
+  .content{padding:12px}
+}
 </style>
 </head>
 <body>
+
 <header>
-  <div>
+  <div class="header-left">
     <h1>🌍 Grants Hub</h1>
-    <p>Uwezo Youth Empowerment &mdash; Updated daily</p>
+    <p>Uwezo Youth Empowerment — Live Opportunities</p>
   </div>
   <div class="header-right">
-    <span id="hdr-count">Loading...</span>
+    <span class="stat-chip" id="stat-total">— grants</span>
+    <span class="stat-chip" id="stat-today">+0 today</span>
     <a href="/logout" class="logout-btn">Logout</a>
   </div>
 </header>
 
-<div class="stats-bar">
-  <div class="stat"><div class="stat-number" id="s-total">—</div><div class="stat-label">Total Grants</div></div>
-  <div class="stat"><div class="stat-number" id="s-today">—</div><div class="stat-label">Added Today</div></div>
-  <div class="stat"><div class="stat-number" id="s-donors">—</div><div class="stat-label">Donors</div></div>
-</div>
+<div class="main">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <h2>🔍 Filters</h2>
 
-<div class="controls">
-  <input class="search-box" id="search" placeholder="🔍  Search grants or donors..." oninput="debounceSearch()">
-  <select id="sort" onchange="loadGrants(1)">
-    <option value="deadline_asc">Deadline: Soonest first</option>
-    <option value="deadline_desc">Deadline: Latest first</option>
-    <option value="posted_desc">Newest posted</option>
-  </select>
-  <select id="donor-filter" onchange="loadGrants(1)"><option value="">All Donors</option></select>
-  <select id="size-filter" onchange="loadGrants(1)"><option value="">All Sizes</option></select>
-</div>
+    <div class="active-filters" id="active-filters"></div>
 
-<div id="grid" class="grid"><div class="loading">Loading grants...</div></div>
-<div class="pager" id="pager"></div>
-<div class="updated" id="updated"></div>
+    <div class="filter-group">
+      <label>Grant Type</label>
+      <select id="f-category" onchange="applyFilters()">
+        <option value="">All Types</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>Region</label>
+      <select id="f-region" onchange="applyFilters()">
+        <option value="">All Regions</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>Who Can Apply</label>
+      <select id="f-eligible" onchange="applyFilters()">
+        <option value="">Everyone</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>Grant Size</label>
+      <select id="f-size" onchange="applyFilters()">
+        <option value="">Any Size</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>Donor / Agency</label>
+      <select id="f-donor" onchange="applyFilters()">
+        <option value="">All Donors</option>
+      </select>
+    </div>
+
+    <button class="clear-filters" onclick="clearFilters()">✕ Clear All Filters</button>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="content">
+    <div class="top-bar">
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search" placeholder="Search grants, donors, topics..." oninput="debounceSearch()">
+      </div>
+      <select class="sort-select" id="sort" onchange="applyFilters()">
+        <option value="deadline_asc">⏰ Deadline: Soonest</option>
+        <option value="deadline_desc">📅 Deadline: Latest</option>
+        <option value="posted_desc">🆕 Newest First</option>
+        <option value="posted_asc">📜 Oldest First</option>
+      </select>
+      <span class="results-info" id="results-info"></span>
+    </div>
+
+    <div id="grants-grid" class="grid"><div class="loading">Loading grants...</div></div>
+    <div id="pagination" class="pagination"></div>
+  </div>
+</div>
 
 <script>
 var currentPage = 1;
-var searchTimer;
-
-function daysLeft(dl) {
-  var d = new Date(dl);
-  var now = new Date();
-  return Math.ceil((d - now) / 86400000);
-}
-
-function loadStats() {
-  fetch('/api/stats', {credentials:'include'}).then(function(r){ return r.json(); }).then(function(d) {
-    document.getElementById('s-total').textContent = d.total.toLocaleString();
-    document.getElementById('s-today').textContent = d.today;
-    document.getElementById('s-donors').textContent = d.donors;
-  });
-}
-
-function loadFilters() {
-  fetch('/api/donors', {credentials:'include'}).then(function(r){ return r.json(); }).then(function(list) {
-    var dd = document.getElementById('donor-filter');
-    list.forEach(function(d) { var o = document.createElement('option'); o.value = d; o.textContent = d; dd.appendChild(o); });
-  });
-  fetch('/api/sizes', {credentials:'include'}).then(function(r){ return r.json(); }).then(function(list) {
-    var sd = document.getElementById('size-filter');
-    list.forEach(function(s) { var o = document.createElement('option'); o.value = s; o.textContent = s; sd.appendChild(o); });
-  });
-}
-
-function loadGrants(page) {
-  if (page) currentPage = page;
-  var search = document.getElementById('search').value;
-  var sort   = document.getElementById('sort').value;
-  var donor  = document.getElementById('donor-filter').value;
-  var size   = document.getElementById('size-filter').value;
-  var params = 'page=' + currentPage + '&per_page=18&search=' + encodeURIComponent(search) +
-               '&sort=' + sort + '&donor=' + encodeURIComponent(donor) + '&size=' + encodeURIComponent(size);
-
-  fetch('/api/grants?' + params, {credentials:'include'}).then(function(r) {
-    if (r.status === 401) { window.location.href = '/login'; return null; }
-    return r.json();
-  }).then(function(data) {
-    if (!data) return;
-    var grid = document.getElementById('grid');
-    if (!data.grants || !data.grants.length) {
-      grid.innerHTML = '<div class="loading">No grants found.</div>';
-      return;
-    }
-    var html = '';
-    data.grants.forEach(function(g) {
-      var days = daysLeft(g.deadline_iso || g.deadline);
-      var dlClass = days <= 7 ? 'dl-soon' : 'dl';
-      var dlText  = days < 0 ? 'Expired' : days === 0 ? 'Today!' : days === 1 ? 'Tomorrow!' : days + ' days left';
-      var badge   = g.category === 'Grant' ? 'badge-grant' : g.category === 'Events' ? 'badge-event' : 'badge-other';
-      var img     = g.image ? g.image : '';
-      html += '<div class="card">' +
-        '<img class="card-img" src="' + img + '" onerror="this.style.display=\'none\'" alt="">' +
-        '<div class="card-body">' +
-          '<div style="margin-bottom:7px"><span class="badge ' + badge + '">' + (g.category || 'Grant') + '</span></div>' +
-          '<div class="card-title">' + g.title + '</div>' +
-          '<div class="meta">' +
-            '<span>&#127962; ' + (g.donor || '') + '</span>' +
-            '<span>&#128176; ' + (g.grant_size || 'Not specified') + '</span>' +
-            '<span>&#128197; Posted: ' + (g.posted_date || '') + '</span>' +
-            '<span><span class="' + dlClass + '">&#9200; ' + g.deadline + ' &mdash; ' + dlText + '</span></span>' +
-          '</div>' +
-        '</div>' +
-        '<div class="card-footer"><a href="/grant/' + (g.slug || g.url) + '" class="btn">View &amp; Apply &rarr;</a></div>' +
-        '</div>';
-    });
-    grid.innerHTML = html;
-
-    // Pagination
-    var pager = document.getElementById('pager');
-    var ph = '';
-    if (data.pages > 1) {
-      if (currentPage > 1) ph += '<button class="pbtn" onclick="loadGrants(' + (currentPage-1) + ')">&lsaquo;</button>';
-      for (var i = Math.max(1, currentPage-2); i <= Math.min(data.pages, currentPage+2); i++) {
-        ph += '<button class="pbtn' + (i === currentPage ? ' active' : '') + '" onclick="loadGrants(' + i + ')">' + i + '</button>';
-      }
-      if (currentPage < data.pages) ph += '<button class="pbtn" onclick="loadGrants(' + (currentPage+1) + ')">&rsaquo;</button>';
-    }
-    pager.innerHTML = ph;
-
-    document.getElementById('updated').textContent = 'Last synced: ' + new Date(data.updated).toLocaleString();
-    document.getElementById('hdr-count').textContent = data.total + ' grants available';
-  }).catch(function(e) {
-    document.getElementById('grid').innerHTML = '<div class="loading">Error loading grants. Please refresh.</div>';
-    console.error(e);
-  });
-}
+var searchTimer = null;
 
 function debounceSearch() {
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(function() { loadGrants(1); }, 400);
+  searchTimer = setTimeout(function() { currentPage=1; loadGrants(); }, 350);
 }
 
+function applyFilters() { currentPage = 1; loadGrants(); }
+
+function clearFilters() {
+  document.getElementById('f-category').value = '';
+  document.getElementById('f-region').value = '';
+  document.getElementById('f-eligible').value = '';
+  document.getElementById('f-size').value = '';
+  document.getElementById('f-donor').value = '';
+  document.getElementById('search').value = '';
+  document.getElementById('sort').value = 'deadline_asc';
+  currentPage = 1;
+  loadGrants();
+}
+
+function loadGrants() {
+  var params = new URLSearchParams({
+    page: currentPage,
+    per_page: 18,
+    search:   document.getElementById('search').value,
+    sort:     document.getElementById('sort').value,
+    category: document.getElementById('f-category').value,
+    region:   document.getElementById('f-region').value,
+    eligible: document.getElementById('f-eligible').value,
+    size:     document.getElementById('f-size').value,
+    donor:    document.getElementById('f-donor').value
+  });
+  document.getElementById('grants-grid').innerHTML = '<div class="loading">Loading...</div>';
+  fetch('/api/grants?' + params, {credentials:'include'})
+    .then(function(r){ if(r.status===401){window.location.href='/login';return null;} return r.json(); })
+    .then(function(d){
+      if(!d) return;
+      updateActiveFilters();
+      document.getElementById('results-info').textContent = d.total + ' grant' + (d.total!==1?'s':'') + ' found';
+      if (!d.grants.length) {
+        document.getElementById('grants-grid').innerHTML = '<div class="empty"><h3>No grants found</h3><p>Try adjusting your filters or search terms</p></div>';
+        document.getElementById('pagination').innerHTML = '';
+        return;
+      }
+      var html = '';
+      d.grants.forEach(function(g) {
+        var days = 0;
+        if (g.deadline_iso) days = Math.ceil((new Date(g.deadline_iso)-new Date())/86400000);
+        var dlBadge = g.deadline_iso
+          ? (days < 0 ? '<span class="badge badge-dl">Expired</span>'
+             : days<=7 ? '<span class="badge badge-dl">⏰ '+days+'d left</span>'
+             : '<span class="badge badge-dl-ok">📅 '+days+'d left</span>')
+          : '';
+        var link = g.slug ? '/grant/'+g.slug : g.url;
+        html += '<div class="card" onclick="window.location=\''+link+'\'">'
+          + (g.image
+            ? '<div class="card-img"><img src="'+g.image+'" onerror="this.parentNode.innerHTML=\'<div class=card-img-placeholder>🌍</div>\'" alt=""></div>'
+            : '<div class="card-img"><div class="card-img-placeholder">🌍</div></div>')
+          + '<div class="card-body">'
+          + '<div class="card-badges">'
+          + (g.category ? '<span class="badge badge-cat">'+g.category+'</span>' : '')
+          + (g.region && g.region!='Global' ? '<span class="badge badge-region">📍'+g.region+'</span>' : '')
+          + (g.grant_size ? '<span class="badge badge-size">'+g.grant_size+'</span>' : '')
+          + dlBadge
+          + '</div>'
+          + '<div class="card-title">'+g.title+'</div>'
+          + '<div class="card-donor">🏛 '+(g.donor||'Unknown Donor')+'</div>'
+          + (g.eligible_org ? '<div class="card-donor">👥 '+g.eligible_org+'</div>' : '')
+          + '<div class="card-footer"><a href="'+link+'" class="btn">View &amp; Apply →</a></div>'
+          + '</div></div>';
+      });
+      document.getElementById('grants-grid').innerHTML = html;
+      renderPagination(d.page, d.pages);
+    });
+}
+
+function renderPagination(page, total) {
+  if (total <= 1) { document.getElementById('pagination').innerHTML = ''; return; }
+  var html = '';
+  var start = Math.max(1, page-2), end = Math.min(total, page+2);
+  if (start > 1) html += '<button class="page-btn" onclick="goPage(1)">1</button>' + (start>2?'<span style="padding:0 4px">…</span>':'');
+  for (var i=start; i<=end; i++) html += '<button class="page-btn'+(i===page?' active':'')+'" onclick="goPage('+i+')">'+i+'</button>';
+  if (end < total) html += (end<total-1?'<span style="padding:0 4px">…</span>':'') + '<button class="page-btn" onclick="goPage('+total+')">'+total+'</button>';
+  document.getElementById('pagination').innerHTML = html;
+}
+
+function goPage(p) { currentPage = p; loadGrants(); window.scrollTo(0,0); }
+
+function updateActiveFilters() {
+  var labels = {
+    'f-category':'Type','f-region':'Region','f-eligible':'Who',
+    'f-size':'Size','f-donor':'Donor'
+  };
+  var html = '';
+  for (var id in labels) {
+    var el = document.getElementById(id);
+    if (el && el.value) {
+      var v = el.value, fid = id;
+      html += '<span class="filter-tag">'+labels[id]+': '+v+'<span onclick="clearFilter(\''+fid+'\')">×</span></span>';
+    }
+  }
+  document.getElementById('active-filters').innerHTML = html;
+}
+
+function clearFilter(id) {
+  document.getElementById(id).value = '';
+  currentPage = 1;
+  loadGrants();
+}
+
+function loadFilterOptions() {
+  fetch('/api/filter-options', {credentials:'include'}).then(function(r){return r.json();}).then(function(d) {
+    var opts = {
+      'f-category': {items: d.categories, prefix: ''},
+      'f-region':   {items: d.regions,    prefix: '📍 '},
+      'f-eligible': {items: d.eligible,   prefix: '👥 '},
+      'f-size':     {items: d.sizes,      prefix: '💰 '},
+      'f-donor':    {items: d.donors,     prefix: '🏛 '}
+    };
+    for (var id in opts) {
+      var sel = document.getElementById(id);
+      var first = sel.options[0];
+      sel.innerHTML = '';
+      sel.appendChild(first);
+      opts[id].items.forEach(function(item) {
+        if (!item) return;
+        var opt = document.createElement('option');
+        opt.value = item;
+        opt.textContent = opts[id].prefix + item;
+        sel.appendChild(opt);
+      });
+    }
+  });
+}
+
+function loadStats() {
+  fetch('/api/stats', {credentials:'include'}).then(function(r){return r.json();}).then(function(d) {
+    document.getElementById('stat-total').textContent = d.total + ' grants';
+    document.getElementById('stat-today').textContent = '+' + d.today + ' today';
+  });
+}
+
+loadFilterOptions();
 loadStats();
-loadFilters();
-loadGrants(1);
+loadGrants();
 </script>
 </body>
 </html>
