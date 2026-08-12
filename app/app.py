@@ -1,4 +1,4 @@
-import os, sqlite3, hashlib, re
+import os, sys, sqlite3, hashlib, re, subprocess, fcntl, atexit
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import Flask, jsonify, request, session, redirect, url_for, send_file
@@ -51,13 +51,18 @@ def detect_eligible_org(text):
     return ', '.join(types) if types else 'NGO'
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=30000")
     return conn
 
 def init_db():
     os.makedirs('/data', exist_ok=True)
     conn = get_db()
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")   # fewer writer/reader locks (scraper + web share the DB)
+    except Exception:
+        pass
     conn.execute("""CREATE TABLE IF NOT EXISTS grants (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         grant_id TEXT UNIQUE, title TEXT, donor TEXT,
@@ -66,6 +71,13 @@ def init_db():
         slug TEXT, description TEXT, full_text TEXT, apply_url TEXT,
         region TEXT, eligible_org TEXT, status TEXT DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS scrape_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        finished_at TIMESTAMP, status TEXT, trigger TEXT,
+        fetched INTEGER DEFAULT 0, added INTEGER DEFAULT 0,
+        message TEXT, pid INTEGER
     )""")
     for col in ['deadline_iso','slug','description','full_text','apply_url','region','eligible_org','status','countries']:
         try:
@@ -133,6 +145,10 @@ def login_page():
 def logout():
     session.clear()
     return redirect(url_for('login_page'))
+
+@app.route('/healthz')
+def healthz():
+    return jsonify({'ok': True}), 200
 
 @app.route('/')
 @login_required
@@ -262,7 +278,7 @@ def ingest():
             _COUNTRIES = ['Afghanistan','Albania','Algeria','Angola','Argentina','Armenia','Australia','Austria','Azerbaijan','Bangladesh','Belarus','Belgium','Benin','Bolivia','Bosnia','Botswana','Brazil','Bulgaria','Burkina Faso','Burundi','Cambodia','Cameroon','Canada','Chad','Chile','China','Colombia','Congo','Costa Rica','Croatia','Cuba','Denmark','Dominican Republic','DR Congo','Ecuador','Egypt','El Salvador','Ethiopia','Finland','France','Gambia','Georgia','Germany','Ghana','Greece','Guatemala','Guinea','Haiti','Honduras','Hungary','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Jamaica','Japan','Jordan','Kazakhstan','Kenya','Kosovo','Kyrgyzstan','Laos','Lebanon','Lesotho','Liberia','Libya','Madagascar','Malawi','Malaysia','Mali','Mauritania','Mexico','Moldova','Mongolia','Montenegro','Morocco','Mozambique','Myanmar','Namibia','Nepal','Netherlands','Nicaragua','Niger','Nigeria','North Macedonia','Norway','Pakistan','Palestine','Panama','Papua New Guinea','Paraguay','Peru','Philippines','Poland','Portugal','Romania','Russia','Rwanda','Senegal','Serbia','Sierra Leone','Somalia','South Africa','South Sudan','Spain','Sri Lanka','Sudan','Sweden','Switzerland','Syria','Tajikistan','Tanzania','Thailand','Timor-Leste','Togo','Tunisia','Turkey','Turkmenistan','Uganda','Ukraine','United Kingdom','United States','Uruguay','Uzbekistan','Venezuela','Vietnam','Yemen','Zambia','Zimbabwe']
             _cl = combined.lower()
             countries = ', '.join([c for c in _COUNTRIES if _re2.search(r'\b'+_re2.escape(c.lower())+r'\b', _cl)]) or 'Global'
-            conn.execute(
+            cur = conn.execute(
                 """INSERT OR IGNORE INTO grants
                    (grant_id,title,donor,grant_size,category,posted_date,deadline,deadline_iso,
                     url,slug,image,description,full_text,apply_url,region,eligible_org,status,countries)
@@ -272,7 +288,7 @@ def ingest():
                  'https://grants.fundsforngospremium.com/'+g.get('url',''),
                  slug, g.get('image',''), g.get('description',''), text,
                  apply_url, region, eligible, 'active', countries))
-            added += 1
+            added += cur.rowcount   # 1 only when a genuinely new row was inserted
         except Exception:
             pass
     # Also mark any existing grants that just expired
@@ -284,7 +300,111 @@ def ingest():
     conn.close()
     return jsonify({'added':added,'total':len(grants)})
 
+# ── Scraper trigger + status ─────────────────────────────────────────────────
+SCRAPER_PATH = '/app/scraper.py'
+
+def scrape_in_progress():
+    """True if a scrape row is 'running' and its process is actually alive."""
+    conn = get_db()
+    row = conn.execute("SELECT pid, started_at FROM scrape_runs WHERE status='running' ORDER BY id DESC LIMIT 1").fetchone()
+    conn.close()
+    if not row: return False
+    pid = row[0]
+    if pid:
+        try:
+            os.kill(pid, 0)   # signal 0 = existence check
+            return True
+        except OSError:
+            # stale 'running' row (process died) — mark it failed so we don't wedge
+            try:
+                c = get_db()
+                c.execute("UPDATE scrape_runs SET status='failed', message='Process died unexpectedly', finished_at=CURRENT_TIMESTAMP WHERE status='running'")
+                c.commit(); c.close()
+            except Exception: pass
+    return False
+
+def launch_scraper(trigger='manual', mode='incremental'):
+    env = dict(os.environ)
+    env['SCRAPE_TRIGGER'] = trigger
+    env['SCRAPE_MODE']    = mode
+    # Detached so it outlives the request / worker that started it.
+    subprocess.Popen([sys.executable, SCRAPER_PATH], env=env,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
+
+@app.route('/api/run-scraper', methods=['POST'])
+@login_required
+def run_scraper():
+    if scrape_in_progress():
+        return jsonify({'ok': False, 'error': 'A scrape is already running.'}), 409
+    mode = 'full' if (request.json or {}).get('mode') == 'full' else 'incremental'
+    try:
+        launch_scraper(trigger='manual', mode=mode)
+        return jsonify({'ok': True, 'message': 'Scraper started.', 'mode': mode})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/scraper-status')
+@login_required
+def scraper_status():
+    conn = get_db()
+    row = conn.execute("SELECT * FROM scrape_runs ORDER BY id DESC LIMIT 1").fetchone()
+    last_ok = conn.execute("SELECT finished_at FROM scrape_runs WHERE status='success' ORDER BY id DESC LIMIT 1").fetchone()
+    conn.close()
+    running = scrape_in_progress()
+    if not row:
+        return jsonify({'running': False, 'status': 'never', 'message': 'Scraper has not run yet.'})
+    r = dict(row)
+    return jsonify({
+        'running': running,
+        'status': 'running' if running else r.get('status'),
+        'message': r.get('message'),
+        'trigger': r.get('trigger'),
+        'fetched': r.get('fetched'),
+        'added':   r.get('added'),
+        'started_at':  r.get('started_at'),
+        'finished_at': r.get('finished_at'),
+        'last_success': last_ok[0] if last_ok else None,
+    })
+
+# ── Self-contained daily scheduler (no host cron needed) ─────────────────────
+# Runs in exactly ONE gunicorn worker: whoever wins the flock owns the schedule.
+def start_scheduler():
+    try:
+        lock = open('/data/.scheduler.lock', 'w')
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except Exception:
+        return  # another worker already owns the scheduler
+    globals()['_sched_lock'] = lock  # keep fd alive for process lifetime
+
+    from apscheduler.schedulers.background import BackgroundScheduler
+    sched = BackgroundScheduler(timezone='UTC', daemon=True)
+    # Daily automated run at 05:00 UTC (07:00 Kigali)
+    sched.add_job(lambda: launch_scraper(trigger='scheduled', mode='incremental'),
+                  'cron', hour=5, minute=0, id='daily_grants', misfire_grace_time=3600)
+    sched.start()
+    atexit.register(lambda: sched.shutdown(wait=False))
+
+    # Catch-up: if the last successful run was >24h ago (e.g. server was down at 05:00), run now.
+    try:
+        conn = get_db()
+        row = conn.execute("SELECT finished_at FROM scrape_runs WHERE status='success' ORDER BY id DESC LIMIT 1").fetchone()
+        conn.close()
+        stale = True
+        if row and row[0]:
+            try:
+                last = datetime.fromisoformat(str(row[0]).replace('Z',''))
+                stale = (datetime.utcnow() - last) > timedelta(hours=24)
+            except Exception:
+                stale = True
+        if stale and not scrape_in_progress():
+            launch_scraper(trigger='scheduled', mode='incremental')
+    except Exception:
+        pass
+
 init_db()
+if os.environ.get('ENABLE_SCHEDULER', '1') == '1':
+    start_scheduler()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

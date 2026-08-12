@@ -12,6 +12,16 @@ services:
       - INGEST_SECRET=uwezogrants2026
       - SITE_PASSWORD=Kigali2020@
       - SECRET_KEY=g4r4nts-kigali-session-2026
+      # FFN credentials come from Coolify env vars (NOT committed to git)
+      - FFN_USER=${FFN_USER}
+      - FFN_PASS=${FFN_PASS}
+      - ENABLE_SCHEDULER=1
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:5000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     labels:
       - "coolify.managed=true"
 

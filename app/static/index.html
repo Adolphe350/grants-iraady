@@ -14,6 +14,17 @@ header{background:linear-gradient(135deg,#1a56db,#0d3b8e);color:white;padding:16
 .stat-chip{background:rgba(255,255,255,.15);border-radius:20px;padding:5px 14px;font-size:.82rem;font-weight:600}
 .logout-btn{color:rgba(255,255,255,.7);font-size:.8rem;text-decoration:none;padding:5px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.3)}
 .logout-btn:hover{background:rgba(255,255,255,.1)}
+.scrape-btn{display:inline-flex;align-items:center;gap:6px;background:#10b981;color:white;border:none;padding:7px 14px;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer;transition:background .15s}
+.scrape-btn:hover{background:#059669}
+.scrape-btn:disabled{opacity:.7;cursor:not-allowed}
+.scrape-banner{display:flex;align-items:center;gap:10px;padding:10px 24px;font-size:.85rem;font-weight:600;background:#ecfdf5;color:#065f46;border-bottom:1px solid #a7f3d0}
+.scrape-banner.err{background:#fef2f2;color:#991b1b;border-bottom-color:#fecaca}
+.scrape-banner.run{background:#eff6ff;color:#1e40af;border-bottom-color:#bfdbfe}
+.scrape-meta{opacity:.7;font-weight:500}
+.scrape-banner-close{margin-left:auto;cursor:pointer;font-size:1.2rem;line-height:1;opacity:.6}
+.scrape-banner-close:hover{opacity:1}
+.spinner{width:14px;height:14px;border:2px solid rgba(30,64,175,.25);border-top-color:#1e40af;border-radius:50%;display:inline-block;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 
 .main{display:flex;gap:0;min-height:calc(100vh - 62px)}
 
@@ -89,9 +100,20 @@ header{background:linear-gradient(135deg,#1a56db,#0d3b8e);color:white;padding:16
     <span class="stat-chip" id="stat-active">— active</span>
     <span class="stat-chip" id="stat-total" style="opacity:.7">— total</span>
     <span class="stat-chip" id="stat-donors">— donors</span>
+    <button class="scrape-btn" id="scrape-btn" onclick="runScraper()" title="Fetch the latest grants from Funds for NGOs now">
+      <span id="scrape-btn-icon">🔄</span> <span id="scrape-btn-label">Run Scraper</span>
+    </button>
     <a href="/logout" class="logout-btn">Logout</a>
   </div>
 </header>
+
+<!-- Scraper status banner -->
+<div id="scrape-banner" class="scrape-banner" style="display:none">
+  <span id="scrape-spinner" class="spinner" style="display:none"></span>
+  <span id="scrape-banner-text"></span>
+  <span id="scrape-banner-meta" class="scrape-meta"></span>
+  <span class="scrape-banner-close" onclick="document.getElementById('scrape-banner').style.display='none'">×</span>
+</div>
 
 <div class="main">
   <!-- SIDEBAR -->
@@ -329,9 +351,89 @@ function loadStats() {
   });
 }
 
+// ── Scraper button + live status ──────────────────────────────────────────
+var scrapePoll = null;
+
+function setBanner(kind, text, meta) {
+  var b = document.getElementById('scrape-banner');
+  b.className = 'scrape-banner' + (kind==='err'?' err':kind==='run'?' run':'');
+  b.style.display = 'flex';
+  document.getElementById('scrape-spinner').style.display = (kind==='run') ? 'inline-block' : 'none';
+  document.getElementById('scrape-banner-text').textContent = text || '';
+  document.getElementById('scrape-banner-meta').textContent = meta || '';
+}
+
+function setBtnRunning(running) {
+  var btn = document.getElementById('scrape-btn');
+  btn.disabled = running;
+  document.getElementById('scrape-btn-icon').textContent = running ? '⏳' : '🔄';
+  document.getElementById('scrape-btn-label').textContent = running ? 'Scraping…' : 'Run Scraper';
+}
+
+function runScraper() {
+  setBtnRunning(true);
+  setBanner('run', 'Starting scraper…', '');
+  fetch('/api/run-scraper', {method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:'{}'})
+    .then(function(r){ return r.json().then(function(d){ return {status:r.status, d:d}; }); })
+    .then(function(res){
+      if (res.status === 409) { setBanner('run', 'A scrape is already running…', ''); startPolling(); return; }
+      if (!res.d.ok) { setBanner('err', 'Could not start: ' + (res.d.error||'unknown error'), ''); setBtnRunning(false); return; }
+      startPolling();
+    })
+    .catch(function(){ setBanner('err','Could not reach server.',''); setBtnRunning(false); });
+}
+
+function fmtTime(s) {
+  if (!s) return '';
+  try { var d = new Date(s.indexOf('Z')<0 ? s+'Z' : s); return d.toLocaleString(); } catch(e){ return s; }
+}
+
+function pollOnce(isFinalRefresh) {
+  fetch('/api/scraper-status', {credentials:'include'})
+    .then(function(r){ return r.json(); })
+    .then(function(s){
+      if (s.status === 'never') { return; }
+      if (s.running) {
+        setBtnRunning(true);
+        setBanner('run', s.message || 'Scraping…',
+                  (s.fetched ? ('scanned ' + s.fetched) : ''));
+      } else {
+        // finished
+        setBtnRunning(false);
+        if (scrapePoll) { clearInterval(scrapePoll); scrapePoll = null; }
+        if (s.status === 'success') {
+          setBanner('ok', '✅ ' + (s.message || 'Scrape complete.'),
+                    'last run ' + fmtTime(s.finished_at));
+          loadStats(); loadFilterOptions(); loadGrants();
+        } else if (s.status === 'failed') {
+          setBanner('err', '⚠️ ' + (s.message || 'Scrape failed.'), 'at ' + fmtTime(s.finished_at));
+        }
+      }
+    });
+}
+
+function startPolling() {
+  pollOnce();
+  if (scrapePoll) clearInterval(scrapePoll);
+  scrapePoll = setInterval(pollOnce, 3000);
+}
+
+function initScraperState() {
+  // On load: if a scrape is running, resume live view; otherwise show last result quietly.
+  fetch('/api/scraper-status', {credentials:'include'})
+    .then(function(r){ return r.json(); })
+    .then(function(s){
+      if (s.status === 'never') return;
+      if (s.running) { setBtnRunning(true); startPolling(); }
+      else if (s.status === 'success') { setBanner('ok', '✅ ' + (s.message||'Up to date.'), 'last run ' + fmtTime(s.finished_at)); }
+      else if (s.status === 'failed') { setBanner('err', '⚠️ Last scrape failed: ' + (s.message||''), fmtTime(s.finished_at)); }
+    }).catch(function(){});
+}
+
 loadFilterOptions();
 loadStats();
 loadGrants();
+initScraperState();
 </script>
 </body>
 </html>
