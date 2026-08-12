@@ -17,7 +17,8 @@ services:
       - FFN_PASS=${FFN_PASS}
       - ENABLE_SCHEDULER=1
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:5000/healthz"]
+      # python is guaranteed in the playwright base image (wget/curl are not)
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5000/healthz',timeout=5).getcode()==200 else 1)"]
       interval: 30s
       timeout: 10s
       retries: 3
