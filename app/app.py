@@ -150,6 +150,11 @@ def logout():
 def healthz():
     return jsonify({'ok': True}), 200
 
+# Public (no login) — required by Google Play's account-deletion policy.
+@app.route('/account-deletion')
+def account_deletion():
+    return send_file('/app/static/account-deletion.html')
+
 @app.route('/')
 @login_required
 def index(): return send_file('/app/static/index.html')
