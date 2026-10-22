@@ -2,10 +2,9 @@ version: "3.8"
 services:
   grants:
     build: ./app
-    container_name: grants-iraady
     restart: unless-stopped
-    ports:
-      - "5041:5000"
+    expose:
+      - "5000"
     volumes:
       - grants_data:/data
     environment:
