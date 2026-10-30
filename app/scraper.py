@@ -37,8 +37,14 @@ CORE_API      = 'https://core.fundsforngospremium.com/api'
 
 MODE      = os.environ.get('SCRAPE_MODE',   'incremental')   # incremental | full
 TRIGGER   = os.environ.get('SCRAPE_TRIGGER','manual')        # manual | scheduled
-TARGET    = int(os.environ.get('SCRAPE_TARGET', '300'))      # cap for full mode
-MAX_PAGES = int(os.environ.get('SCRAPE_MAX_PAGES', '25'))    # hard safety cap
+TARGET    = int(os.environ.get('SCRAPE_TARGET', '6000'))     # cap for full mode
+MAX_PAGES = int(os.environ.get('SCRAPE_MAX_PAGES', '400'))   # hard safety cap
+# FFN does not list strictly newest-first: new grants also turn up a few pages
+# down. Incremental runs scan at least MIN_PAGES pages and stop only after
+# KNOWN_STREAK whole pages in a row had nothing new.
+MIN_PAGES    = int(os.environ.get('SCRAPE_MIN_PAGES', '15'))
+KNOWN_STREAK = int(os.environ.get('SCRAPE_KNOWN_STREAK', '3'))
+RELOGIN_SECS = 540   # the FFN token lives ~12 minutes
 RUN_ID    = None
 
 USER_AGENTS = [
@@ -201,34 +207,41 @@ def fetch_page(auth, page_index, page_size):
 
 def fetch_grants(auth):
     """
-    Page newest-first. In incremental mode, stop as soon as a whole page contains
-    nothing new (we've caught up). In full mode, keep going up to TARGET. Does NOT
-    rely on the API's totalCount (it reports 0 — the old early-break bug).
+    Page through FFN's latest grants and return the ones to ingest.
+    Incremental: scan at least MIN_PAGES pages, stop after KNOWN_STREAK pages in
+    a row with nothing new (FFN's order is not strictly newest-first, so stopping
+    at the first known page missed grants). Full: keep going to TARGET.
+    Logs in again before the token expires, and on an empty/failed page.
+    Does NOT rely on the API's totalCount (it reports 0).
     """
     known = existing_grant_ids()
     log.info(f"{len(known)} grants already in DB | mode={MODE}")
     fetched, new_grants = [], []
-    page_index, empty_streak = 1, 0
+    page_index, empty_streak, known_streak, t_login = 1, 0, 0, time.time()
     while page_index <= MAX_PAGES:
-        size = random.randint(12, 18)
-        grants = fetch_page(auth, page_index, size)
+        if time.time() - t_login > RELOGIN_SECS:
+            log.info("Refreshing FFN login (token lifetime)")
+            auth = login_and_get_token(); t_login = time.time()
+        grants = fetch_page(auth, page_index, random.randint(12, 18))
         if not grants:
             empty_streak += 1
-            if empty_streak >= 2: break
-            page_index += 1; continue
+            if empty_streak >= 3: break
+            auth = login_and_get_token(); t_login = time.time()   # maybe the token expired
+            continue
         empty_streak = 0
         fetched.extend(grants)
         page_new = [g for g in grants if grant_hash(g) not in known]
+        for g in page_new: known.add(grant_hash(g))
         new_grants.extend(page_new)
         run_update(message=f"Scanned {len(fetched)} grants, {len(new_grants)} new so far…",
                    fetched=len(fetched), added=None)
         log.info(f"  page {page_index}: {len(grants)} grants, {len(page_new)} new")
         if MODE == 'incremental':
-            if not page_new:            # whole page already known -> caught up
+            known_streak = 0 if page_new else known_streak + 1
+            if page_index >= MIN_PAGES and known_streak >= KNOWN_STREAK:
                 break
-        else:
-            if len(fetched) >= TARGET:  # full backfill cap
-                break
+        elif len(fetched) >= TARGET:
+            break
         page_index += 1
         time.sleep(random.uniform(3.0, 8.0))   # be gentle on their API
     return (new_grants if MODE == 'incremental' else fetched)
