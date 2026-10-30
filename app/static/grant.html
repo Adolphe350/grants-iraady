@@ -92,11 +92,13 @@ fetch('/api/grant/' + slug, {credentials:'include'}).then(function(r) {
     html += '<div class="section"><h2>Full Details</h2><div class="section-body">' + g.full_text + '</div></div>';
   }
 
-  html += '<div class="apply-bar">' +
-    '<p>Ready to apply? Click to open the official application page.</p>' +
-    '<a href="' + (g.apply_url || g.url) + '" target="_blank" class="apply-btn">Apply Now &#8594;</a>' +
-    '</div>' +
-    '</div></div>';
+  // Apply goes to the funder's own page, never to Funds for NGOs (members-only).
+  var applyUrl = (g.apply_url && g.apply_url.indexOf('fundsforngo') === -1) ? g.apply_url : '';
+  html += applyUrl
+    ? '<div class="apply-bar"><p>Ready to apply? Click to open the official application page.</p>' +
+      '<a href="' + applyUrl + '" target="_blank" rel="noopener" class="apply-btn">Apply Now &#8594;</a></div>'
+    : '<div class="apply-bar"><p>How to apply is described in the details above.</p></div>';
+  html += '</div></div>';
 
   document.getElementById('content').innerHTML = html;
   document.title = g.title + ' | Grants Hub';
