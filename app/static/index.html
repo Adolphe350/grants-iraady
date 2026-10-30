@@ -258,7 +258,7 @@ function loadGrants() {
           : g.deadline_iso
             ? (days<=7 ? '<span class="badge badge-dl">⏰ '+days+'d left</span>'
                : '<span class="badge badge-dl-ok">📅 '+days+'d left</span>')
-            : '';
+            : '<span class="badge badge-dl-ok">🔄 Ongoing</span>';
         var link = g.slug ? '/grant/'+g.slug : g.url;
         var expiredOverlay = isExpired ? ' style="opacity:.65"' : '';
         html += '<div class="card"'+expiredOverlay+' onclick="window.location=\''+link+'\'">'

@@ -263,9 +263,13 @@ def ingest():
         gid  = hashlib.md5((g.get('title','')+g.get('deadline','')).encode()).hexdigest()
         slug = g.get('url','').split('/op/')[-1] if '/op/' in g.get('url','') else ''
         try:
+            # The detail page's deadline is the real one ("Ongoing" in the list is
+            # often a dated call). grant_id stays on the list deadline, so the
+            # scraper's known-grant check keeps matching.
+            shown_deadline = g.get('detailDeadline') or g.get('deadline','')
             deadline_iso = ''
             try:
-                deadline_iso = datetime.strptime(g.get('deadline',''), "%B %d, %Y").strftime("%Y-%m-%d")
+                deadline_iso = datetime.strptime(shown_deadline, "%B %d, %Y").strftime("%Y-%m-%d")
             except Exception:
                 pass
             # Skip inserting new grants that are already expired
@@ -289,7 +293,7 @@ def ingest():
                     url,slug,image,description,full_text,apply_url,region,eligible_org,status,countries)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (gid, g.get('title'), g.get('donorAgency'), g.get('grantSize'),
-                 g.get('category'), g.get('posted'), g.get('deadline'), deadline_iso,
+                 g.get('category'), g.get('posted'), shown_deadline, deadline_iso,
                  'https://grants.fundsforngospremium.com/'+g.get('url',''),
                  slug, g.get('image',''), g.get('description',''), text,
                  apply_url, region, eligible, 'active', countries))

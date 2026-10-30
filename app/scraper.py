@@ -246,6 +246,46 @@ def fetch_grants(auth):
         time.sleep(random.uniform(3.0, 8.0))   # be gentle on their API
     return (new_grants if MODE == 'incremental' else fetched)
 
+def fetch_detail(auth, slug):
+    """FFN's own grant page data: full text (HTML), the funder's real URL and
+    the real deadline (the search list often says 'Ongoing')."""
+    if not slug:
+        return {}
+    try:
+        r = requests.get(f'{CORE_API}/Grant/GetGrant',
+                         params={'url': slug, 'MemberId': auth.get('member_id', '')},
+                         headers=make_api_headers(auth), timeout=30)
+        if r.status_code != 200:
+            log.warning(f"GetGrant {slug} -> {r.status_code}")
+            return {}
+        return r.json().get('grant') or {}
+    except Exception as e:
+        log.warning(f"GetGrant {slug} failed: {e}")
+        return {}
+
+def add_details(auth, grants):
+    """Fill text / applyLink / detailDeadline on each grant from GetGrant.
+    Logs in again before the ~12 min token runs out."""
+    t_login = time.time()
+    for i, g in enumerate(grants, 1):
+        if time.time() - t_login > RELOGIN_SECS:
+            auth = login_and_get_token(); t_login = time.time()
+        slug = (g.get('url', '') or '').split('/op/')[-1].strip('/')
+        d = fetch_detail(auth, slug)
+        if d:
+            g['text'] = d.get('text') or g.get('text') or ''
+            link = d.get('url') or ''
+            if link.startswith('http') and 'fundsforngo' not in link:
+                g['applyLink'] = link
+            if d.get('deadline'):
+                g['detailDeadline'] = d['deadline']
+            if not g.get('description') and d.get('description'):
+                g['description'] = d['description']
+        if i % 10 == 0:
+            run_update(message=f"Fetching full details {i}/{len(grants)}…")
+        time.sleep(random.uniform(1.0, 2.5))
+    return grants
+
 def normalize(raw):
     return {
         'title':raw.get('title',''), 'donorAgency':raw.get('donorAgency',''), 'grantSize':raw.get('grantSize',''),
@@ -254,6 +294,7 @@ def normalize(raw):
         'description':raw.get('description') or raw.get('shortDescription') or '',
         'text':raw.get('fullText') or raw.get('text') or raw.get('content') or '',
         'applyLink':raw.get('applyLink') or raw.get('applicationUrl') or raw.get('websiteLink') or '',
+        'detailDeadline':raw.get('detailDeadline',''),
     }
 
 def post_to_ingest(grants):
@@ -286,6 +327,8 @@ def main():
         if not grants:
             run_finish('success', 'No new grants — already up to date.', fetched=0, added=0)
             log.info("No new grants."); return
+        if MODE == 'incremental':
+            grants = add_details(auth, grants)
         run_update(message=f"Saving {len(grants)} grants…", fetched=len(grants))
         result = post_to_ingest([normalize(g) for g in grants])
         added = result.get('added', 0) if isinstance(result, dict) else 0

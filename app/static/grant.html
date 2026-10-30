@@ -63,7 +63,8 @@ fetch('/api/grant/' + slug, {credentials:'include'}).then(function(r) {
   if (g.deadline_iso) {
     days = Math.ceil((new Date(g.deadline_iso) - new Date()) / 86400000);
   }
-  var dlBadge = days < 0 ? '<span class="badge badge-dl">Expired</span>' :
+  var dlBadge = !g.deadline_iso ? '<span class="badge badge-dl-ok">&#9200; Ongoing / rolling</span>' :
+                days < 0 ? '<span class="badge badge-dl">Expired</span>' :
                 days <= 7 ? '<span class="badge badge-dl">&#9200; ' + days + ' days left</span>' :
                             '<span class="badge badge-dl-ok">&#9200; ' + days + ' days left</span>';
 
