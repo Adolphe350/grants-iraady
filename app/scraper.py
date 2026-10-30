@@ -147,7 +147,7 @@ def login_and_get_token():
     from playwright.sync_api import sync_playwright
     ua = random.choice(USER_AGENTS); viewport = random.choice(VIEWPORTS); accept_lang = random.choice(ACCEPT_LANGUAGES)
     log.info(f"Logging in | UA: {ua[:40]}... | viewport: {viewport}")
-    result, token_captured = {}, []
+    result, token_captured, member_ids = {}, [], []
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=['--no-sandbox','--disable-dev-shm-usage','--disable-blink-features=AutomationControlled'])
         ctx = browser.new_context(user_agent=ua, viewport=viewport, locale='en-US', timezone_id='Africa/Kigali',
@@ -163,6 +163,17 @@ def login_and_get_token():
             if auth.startswith('Bearer '):
                 t = auth.replace('Bearer ','').strip()
                 if t and t not in token_captured: token_captured.append(t)
+            # The real member id (e.g. 'SrW1o+5+JlRb…||') rides on the site's own
+            # API calls; GetGrant needs it (the _USR_AUTH_ cookie value is refused).
+            if 'core.fundsforngospremium.com' in req.url:
+                from urllib.parse import urlparse
+                from urllib.parse import unquote
+                mid = next((unquote(kv.split('=', 1)[1]) for kv in urlparse(req.url).query.split('&')
+                            if kv.lower().startswith('memberid=')), '')
+                if not mid and req.method == 'POST':
+                    try: mid = (json.loads(req.post_data or '{}') or {}).get('memberId', '')
+                    except Exception: mid = ''
+                if mid and mid not in member_ids: member_ids.append(mid)
         page.on('request', on_request)
         run_update(message="Logging in to Funds for NGOs…")
         page.goto('https://login.fundsforngospremium.com/', wait_until='domcontentloaded', timeout=25000)
@@ -179,7 +190,7 @@ def login_and_get_token():
         random_scroll(page); random_mouse_move(page); jitter(2.0,3.5)
         cookies = {c['name']:c['value'] for c in ctx.cookies()}
         result['token']               = token_captured[-1] if token_captured else None
-        result['member_id']           = cookies.get('_USR_AUTH_','')
+        result['member_id']           = member_ids[-1] if member_ids else cookies.get('_USR_AUTH_','')
         result['access_token_cookie'] = cookies.get('_USR_ACCESSTOKEN_','')
         result['ua'] = ua; result['accept_lang'] = accept_lang
         browser.close()
