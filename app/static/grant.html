@@ -2,109 +2,104 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Grant Detail | Grants Hub</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Segoe UI',sans-serif;background:#f0f4f8;color:#1a202c}
-  header{background:linear-gradient(135deg,#1a56db,#0d3b8e);color:white;padding:16px 32px;display:flex;align-items:center;justify-content:space-between}
-  header a{color:white;text-decoration:none;opacity:.85;font-size:.9rem;display:flex;align-items:center;gap:6px}
-  header a:hover{opacity:1}
-  .container{max-width:860px;margin:32px auto;padding:0 20px 60px}
-  .card{background:white;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.09)}
-  .hero{width:100%;height:240px;object-fit:cover;background:#e2e8f0;display:block}
-  .body{padding:28px 32px}
-  .meta-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px}
-  .badge{display:inline-block;padding:5px 14px;border-radius:20px;font-size:.8rem;font-weight:600}
-  .badge-cat{background:#dbeafe;color:#1e40af}
-  .badge-size{background:#d1fae5;color:#065f46}
-  .badge-dl{background:#fff5f5;color:#c53030}
-  .badge-dl-ok{background:#f0fdf4;color:#166534}
-  h1{font-size:1.5rem;font-weight:700;line-height:1.4;margin-bottom:18px;color:#1a202c}
-  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px}
-  .info-item{background:#f8fafc;border-radius:8px;padding:12px 14px}
-  .info-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;color:#718096;margin-bottom:3px}
-  .info-value{font-size:.92rem;font-weight:600;color:#1a202c}
-  .section{margin-bottom:24px}
-  .section h2{font-size:1rem;font-weight:700;color:#1a56db;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #dbeafe}
-  .section-body{font-size:.9rem;line-height:1.75;color:#374151}
-  .section-body p{margin-bottom:10px}
-  .section-body ul{padding-left:20px}
-  .section-body li{margin-bottom:5px}
-  .apply-bar{background:#1a56db;border-radius:10px;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:8px}
-  .apply-bar p{color:white;font-size:.9rem;opacity:.9}
-  .apply-btn{background:white;color:#1a56db;padding:10px 24px;border-radius:8px;font-weight:700;font-size:.95rem;text-decoration:none;white-space:nowrap}
-  .apply-btn:hover{background:#f0f4ff}
-  .back-btn{display:inline-flex;align-items:center;gap:6px;color:#1a56db;text-decoration:none;font-size:.88rem;margin-bottom:18px}
-  .loading{text-align:center;padding:80px;color:#718096}
-  @media(max-width:600px){.info-grid{grid-template-columns:1fr}.body{padding:18px}.apply-bar{flex-direction:column;text-align:center}}
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grant · Grants Iraady</title>
+<meta name="robots" content="noindex">
+<script>(function(){try{var t=localStorage.getItem('gi-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t)}catch(e){}})()</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2313294B'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23fff' stroke-opacity='.5' stroke-width='1.6'/%3E%3Cpath d='M16 16L24 9' stroke='%23D9911A' stroke-width='2.6' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='16' r='2.4' fill='%23D9911A'/%3E%3C/svg%3E">
+<link rel="preload" href="/static/fonts/public-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/schibsted-grotesk-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-<header>
-  <a href="/">&#8592; Back to Grants Hub</a>
-  <span style="font-size:.85rem;opacity:.7">Uwezo Youth Empowerment</span>
-</header>
-
-<div class="container">
-  <div id="content"><div class="loading">Loading grant details...</div></div>
+<a class="skip" href="#main">Skip to content</a>
+<div class="app">
+  <div class="main">
+    <main id="main" class="page d-pad" tabindex="-1" aria-busy="true">
+      <div class="d-head"><span class="sk" style="width:120px;margin-bottom:18px"></span><span class="sk" style="width:70%;height:30px;margin-bottom:12px"></span><span class="sk" style="width:30%"></span></div>
+    </main>
+    <footer class="foot">Built by Iraady Ltd · <a href="https://iraady.com" rel="noopener">iraady.com</a> · <a href="/fundnest/privacy">Fund Nest privacy</a></footer>
+  </div>
 </div>
-
+<script src="/static/shell.js"></script>
 <script>
-var slug = window.location.pathname.replace('/grant/', '').replace(/\/$/, '');
+(function () {
+  'use strict';
+  var GI = window.GI, esc = GI.esc, icon = GI.icon, main = document.getElementById('main');
+  GI.mountShell('all');
+  var slug = decodeURIComponent(location.pathname.replace(/^\/grant\//, '').replace(/\/$/, ''));
+  var back = '/?view=all';
+  try { var l = sessionStorage.getItem('gi-last'); if (l && l.charAt(0) === '/') back = l; } catch (e) {}
 
-fetch('/api/grant/' + slug, {credentials:'include'}).then(function(r) {
-  if (r.status === 401) { window.location.href = '/login'; return null; }
-  if (r.status === 404) { document.getElementById('content').innerHTML = '<div class="loading">Grant not found.</div>'; return null; }
-  return r.json();
-}).then(function(g) {
-  if (!g) return;
-  var days = 0;
-  if (g.deadline_iso) {
-    days = Math.ceil((new Date(g.deadline_iso) - new Date()) / 86400000);
+  function fail(title, msg) {
+    document.title = title + ' · Grants Iraady';
+    main.innerHTML = '<div class="crumbs"><a href="' + esc(back) + '">' + icon('back') + 'Back to grants</a></div><div class="panel empty"><div class="art">' + icon('alert') + '</div><h3>' + esc(title) + '</h3><p>' + esc(msg) + '</p><a class="btn btn-primary" href="/?view=all">Browse all grants</a></div>';
+    main.setAttribute('aria-busy', 'false');
   }
-  var dlBadge = !g.deadline_iso ? '<span class="badge badge-dl-ok">&#9200; Ongoing / rolling</span>' :
-                days < 0 ? '<span class="badge badge-dl">Expired</span>' :
-                days <= 7 ? '<span class="badge badge-dl">&#9200; ' + days + ' days left</span>' :
-                            '<span class="badge badge-dl-ok">&#9200; ' + days + ' days left</span>';
-
-  var html = '<a href="/" class="back-btn">&#8592; All Grants</a>' +
-    '<div class="card">' +
-    (g.image ? '<img class="hero" src="' + g.image + '" onerror="this.style.display=\'none\'" alt="">' : '') +
-    '<div class="body">' +
-      '<div class="meta-row">' +
-        '<span class="badge badge-cat">' + (g.category || 'Grant') + '</span>' +
-        '<span class="badge badge-size">&#128176; ' + (g.grant_size || 'Size N/A') + '</span>' +
-        dlBadge +
-      '</div>' +
-      '<h1>' + g.title + '</h1>' +
-      '<div class="info-grid">' +
-        '<div class="info-item"><div class="info-label">Donor / Agency</div><div class="info-value">' + (g.donor || '—') + '</div></div>' +
-        '<div class="info-item"><div class="info-label">Deadline</div><div class="info-value">' + (g.deadline || '—') + '</div></div>' +
-        '<div class="info-item"><div class="info-label">Posted</div><div class="info-value">' + (g.posted_date || '—') + '</div></div>' +
-        '<div class="info-item"><div class="info-label">Category</div><div class="info-value">' + (g.category || '—') + '</div></div>' +
-      '</div>';
-
-  if (g.description) {
-    html += '<div class="section"><h2>About This Grant</h2><div class="section-body">' + g.description + '</div></div>';
-  }
-  if (g.full_text) {
-    html += '<div class="section"><h2>Full Details</h2><div class="section-body">' + g.full_text + '</div></div>';
+  function fact(label, value, small) {
+    if (!value) return '';
+    return '<div class="f"><dt>' + label + '</dt><dd>' + value + (small ? '<small>' + small + '</small>' : '') + '</dd></div>';
   }
 
-  // Apply goes to the funder's own page, never to Funds for NGOs (members-only).
-  var applyUrl = (g.apply_url && g.apply_url.indexOf('fundsforngo') === -1) ? g.apply_url : '';
-  html += applyUrl
-    ? '<div class="apply-bar"><p>Ready to apply? Click to open the official application page.</p>' +
-      '<a href="' + applyUrl + '" target="_blank" rel="noopener" class="apply-btn">Apply Now &#8594;</a></div>'
-    : '<div class="apply-bar"><p>How to apply is described in the details above.</p></div>';
-  html += '</div></div>';
+  GI.get('/api/grant/' + encodeURI(slug)).then(function (g) {
+    var d = GI.deadline(g), sz = GI.sizeText(g);
+    var applyUrl = /^https?:\/\//i.test(g.apply_url || '') && !/fundsforngo/i.test(g.apply_url) ? g.apply_url : '';
+    var countries = (g.countries || '').split(',').map(function (x) { return x.trim(); }).filter(function (x) { return x && x !== 'Global'; });
+    var cShown = countries.length > 6 ? countries.slice(0, 6).join(', ') + ' +' + (countries.length - 6) + ' more' : countries.join(', ');
+    document.title = g.title + ' · Grants Iraady';
 
-  document.getElementById('content').innerHTML = html;
-  document.title = g.title + ' | Grants Hub';
-}).catch(function(e) {
-  document.getElementById('content').innerHTML = '<div class="loading">Error loading grant. <a href="/">Go back</a></div>';
-});
+    var dlWhen = g.deadline_iso ? GI.fmtDate(g.deadline_iso) : 'No fixed deadline';
+    var chips = GI.chip(g, true) +
+      (g.category ? '<span class="chip chip-lg chip-plain">' + icon('tag') + esc(g.category) + '</span>' : '') +
+      (sz ? '<span class="chip chip-lg chip-size">' + esc(sz) + '</span>' : '') +
+      (GI.isNew(g) && !d.past ? '<span class="chip chip-lg chip-green">New this week</span>' : '');
+
+    var applyBtn = applyUrl
+      ? '<a class="btn btn-primary btn-lg" href="' + esc(applyUrl) + '" target="_blank" rel="noopener noreferrer">Apply on funder’s site' + icon('ext') + '</a>'
+      : '';
+    var applyNote = applyUrl
+      ? '<p>Opens the funder’s own page in a new tab.</p>'
+      : '<p>No direct apply link was captured for this grant. Read “How to apply” in the details.</p>';
+
+    var body = '';
+    var desc = g.description || '', full = g.full_text || '';
+    var plain = function (h) { return String(h).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase(); };
+    var dupe = desc && full && plain(full).indexOf(plain(desc).slice(0, 80)) >= 0;
+    if (desc && !dupe) body += '<h2 class="sec">Summary</h2><div class="lead">' + GI.sanitize(desc) + '</div>';
+    if (full) body += '<h2 class="sec">Full details</h2>' + GI.sanitize(full);
+    if (!body) body = '<p>No description was captured for this grant.</p>';
+
+    main.innerHTML =
+      '<div class="crumbs"><a href="' + esc(back) + '">' + icon('back') + 'Back to grants</a></div>' +
+      '<header class="d-head"><div class="chips">' + chips + '</div><h1>' + esc(g.title) + '</h1>' +
+      '<p class="by">' + icon('building') + '<span>' + esc(g.donor || 'Unknown funder') + '</span></p></header>' +
+      '<div class="d-grid"><article class="read" aria-label="Grant details">' + body + '</article>' +
+      '<aside class="d-aside" aria-label="Key facts">' +
+      '<section class="panel facts-card"><div class="panel-head"><h2>Key facts</h2></div><dl>' +
+        fact('Deadline', esc(dlWhen), d.days !== null && !d.past ? esc(d.text.replace('Closes ', 'Closes ')) : (d.past ? 'Closed' : 'Rolling basis')) +
+        fact('Grant size', sz ? esc(sz) : '', '') +
+        fact('Funder', esc(g.donor || '')) +
+        fact('Region', esc(g.region || 'Global')) +
+        fact('Countries', esc(cShown)) +
+        fact('Who can apply', esc(g.eligible_org || '')) +
+        fact('Category', esc(g.category || '')) +
+        fact('Posted', esc(g.posted_date || '')) +
+      '</dl></section>' +
+      '<section class="panel apply-card">' + applyBtn + '<button class="btn" id="copy" type="button">' + icon('copy') + 'Copy link</button>' + applyNote + '</section>' +
+      '</aside></div>' +
+      '<div class="sticky-apply">' + (applyUrl ? '<a class="btn btn-primary" href="' + esc(applyUrl) + '" target="_blank" rel="noopener noreferrer">Apply on funder’s site' + icon('ext') + '</a>' : '') + '<button class="btn" id="copy2" type="button" aria-label="Copy link">' + icon('copy') + '</button></div>';
+    main.setAttribute('aria-busy', 'false');
+    var copy = function () {
+      var url = location.href, ok = function () { GI.toast('Link copied'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok, function () { prompt('Copy this link', url); });
+      else { var t = document.createElement('textarea'); t.value = url; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); ok(); } catch (e) { prompt('Copy this link', url); } t.remove(); }
+    };
+    document.getElementById('copy').onclick = copy; document.getElementById('copy2').onclick = copy;
+  }).catch(function (e) {
+    if (e.status === 404) fail('Grant not found', 'This grant is not in the database. It may have been removed.');
+    else fail('Could not load this grant', 'The server did not answer. Try again in a moment.');
+  });
+})();
 </script>
 </body>
 </html>
