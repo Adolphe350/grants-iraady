@@ -51,10 +51,18 @@ def detect_eligible_org(text):
     if any(w in t for w in ['individual','person','citizen','student','researcher','artist']): types.append('Individual')
     return ', '.join(types) if types else 'NGO'
 
+def _posted_iso(text):
+    """'November 02, 2026' -> '2026-11-02'. None when the text is not in that format."""
+    try:
+        return datetime.strptime((text or '').strip(), "%B %d, %Y").strftime("%Y-%m-%d")
+    except Exception:
+        return None
+
 def get_db():
     conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout=30000")
+    conn.create_function('posted_iso', 1, _posted_iso, deterministic=True)   # read-only helper for the "new this week" view
     return conn
 
 def init_db():
@@ -139,7 +147,7 @@ def login_page():
             return redirect(url_for('index'))
         error = True
     html = open('/app/static/login.html').read()
-    if error: html = html.replace('<!--ERROR-->', '<div class="error">Incorrect password. Try again.</div>')
+    if error: html = html.replace('<!--ERROR-->', '<div class="error" role="alert">Incorrect password. Try again.</div>')
     return html, 200, {'Content-Type': 'text/html'}
 
 @app.route('/logout')
@@ -203,12 +211,29 @@ def api_grants():
     if country:  query += " AND countries LIKE ?";        params.append('%'+country+'%')
     if status and status != 'all':
         query += " AND (status=? OR status IS NULL)";     params.append(status)
+    # Optional date windows used by the "Closing this week" / "New this week" views (additive; ignored when absent or invalid).
+    today_d = datetime.utcnow().date()
+    try:
+        closing_within = int(request.args.get('closing_within', ''))
+    except ValueError:
+        closing_within = None
+    if closing_within is not None and closing_within >= 0:
+        query += " AND deadline_iso IS NOT NULL AND deadline_iso != '' AND deadline_iso >= ? AND deadline_iso <= ?"
+        params += [today_d.isoformat(), (today_d + timedelta(days=closing_within)).isoformat()]
+    try:
+        posted_within = int(request.args.get('posted_within', ''))
+    except ValueError:
+        posted_within = None
+    if posted_within is not None and posted_within >= 0:
+        query += " AND COALESCE(posted_iso(posted_date), substr(created_at,1,10)) >= ?"
+        params.append((today_d - timedelta(days=posted_within)).isoformat())
 
     sort_map = {
         'deadline_asc':  'COALESCE(deadline_iso, deadline) ASC',
         'deadline_desc': 'COALESCE(deadline_iso, deadline) DESC',
         'posted_desc':   'created_at DESC',
         'posted_asc':    'created_at ASC',
+        'posted_date_desc': 'COALESCE(posted_iso(posted_date), substr(created_at,1,10)) DESC, id DESC',
     }
     query += " ORDER BY " + sort_map.get(sort, 'COALESCE(deadline_iso, deadline) ASC')
     total  = conn.execute("SELECT COUNT(*) FROM (" + query + ")", params).fetchone()[0]
@@ -227,6 +252,71 @@ def api_stats():
     donors  = conn.execute("SELECT COUNT(DISTINCT donor) FROM grants").fetchone()[0]
     conn.close()
     return jsonify({'total':total,'active':active,'expired':expired,'donors':donors})
+
+@app.route('/api/overview')
+@login_required
+def api_overview():
+    """Read-only counts for the Overview, Browse-by and Scraper & data health screens."""
+    today = datetime.utcnow().date()
+    t0 = today.isoformat()
+    def ahead(n): return (today + timedelta(days=n)).isoformat()
+    live = "(status='active' OR status IS NULL)"
+    conn = get_db()
+    try:
+        def one(sql, *p): return conn.execute(sql, p).fetchone()[0]
+        total   = one("SELECT COUNT(*) FROM grants")
+        active  = one("SELECT COUNT(*) FROM grants WHERE " + live)
+        expired = one("SELECT COUNT(*) FROM grants WHERE status='expired'")
+        donors  = one("SELECT COUNT(DISTINCT donor) FROM grants WHERE " + live)
+        def closing(n):
+            return one("SELECT COUNT(*) FROM grants WHERE " + live +
+                       " AND deadline_iso IS NOT NULL AND deadline_iso != '' AND deadline_iso >= ? AND deadline_iso <= ?", t0, ahead(n))
+        c_today, c_3, c_7, c_30 = closing(0), closing(3), closing(7), closing(30)
+        posted_cut = (today - timedelta(days=7)).isoformat()
+        new_7 = one("SELECT COUNT(*) FROM grants WHERE " + live +
+                    " AND COALESCE(posted_iso(posted_date), substr(created_at,1,10)) >= ?", posted_cut)
+        health = {
+            'with_apply_url': one("SELECT COUNT(*) FROM grants WHERE " + live + " AND apply_url IS NOT NULL AND apply_url != ''"),
+            'with_size':      one("SELECT COUNT(*) FROM grants WHERE " + live + " AND grant_size IS NOT NULL AND grant_size NOT IN ('', 'Not Available')"),
+            'with_deadline':  one("SELECT COUNT(*) FROM grants WHERE " + live + " AND deadline_iso IS NOT NULL AND deadline_iso != ''"),
+            'with_full_text': one("SELECT COUNT(*) FROM grants WHERE " + live + " AND full_text IS NOT NULL AND full_text != ''"),
+            'global_region':  one("SELECT COUNT(*) FROM grants WHERE " + live + " AND (region IS NULL OR region='' OR region='Global')"),
+        }
+        def tally(col):
+            rows = conn.execute("SELECT " + col + ", COUNT(*) FROM grants WHERE " + live +
+                                " AND " + col + " IS NOT NULL AND " + col + " != '' GROUP BY " + col +
+                                " ORDER BY COUNT(*) DESC, " + col).fetchall()
+            return [{'name': r[0], 'count': r[1]} for r in rows]
+        regions, categories, sizes, donor_counts = tally('region'), tally('category'), tally('grant_size'), tally('donor')
+        country_counts = {}
+        for (c,) in conn.execute("SELECT countries FROM grants WHERE " + live + " AND countries IS NOT NULL AND countries != '' AND countries != 'Global'").fetchall():
+            for part in c.split(','):
+                p = part.strip()
+                if p and p != 'Global': country_counts[p] = country_counts.get(p, 0) + 1
+        countries = [{'name': k, 'count': v} for k, v in sorted(country_counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+        runs = [dict(r) for r in conn.execute(
+            "SELECT id, started_at, finished_at, status, trigger, fetched, added, message FROM scrape_runs ORDER BY id DESC LIMIT 12").fetchall()]
+        by_week = []
+        for i in range(8):
+            by_week.append(one("SELECT COUNT(*) FROM grants WHERE " + live +
+                               " AND deadline_iso IS NOT NULL AND deadline_iso != '' AND deadline_iso >= ? AND deadline_iso <= ?",
+                               ahead(7 * i), ahead(7 * i + 6)))
+        last_ok = conn.execute("SELECT finished_at FROM scrape_runs WHERE status='success' ORDER BY id DESC LIMIT 1").fetchone()
+        last_row = conn.execute("SELECT MAX(created_at) FROM grants").fetchone()
+    finally:
+        conn.close()
+    return jsonify({
+        'today': t0, 'total': total, 'active': active, 'expired': expired, 'donors': donors,
+        'closing_today': c_today,
+        'closing_3': c_3, 'closing_7': c_7, 'closing_30': c_30, 'new_7': new_7,
+        'closing_by_week': by_week,
+        'health': health,
+        'regions': regions, 'categories': categories, 'sizes': sizes,
+        'donor_counts': donor_counts, 'countries': countries,
+        'runs': runs, 'last_success': last_ok[0] if last_ok else None,
+        'last_grant_added': last_row[0] if last_row else None,
+        'next_scheduled_utc': '05:00',
+    })
 
 @app.route('/api/filter-options')
 @login_required
