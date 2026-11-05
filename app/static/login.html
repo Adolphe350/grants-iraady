@@ -2,32 +2,98 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Grants Hub | Login</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Segoe UI',sans-serif;background:linear-gradient(135deg,#1a56db,#0d3b8e);min-height:100vh;display:flex;align-items:center;justify-content:center}
-  .box{background:white;border-radius:16px;padding:48px 40px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center}
-  .logo{font-size:3rem;margin-bottom:12px}
-  h1{color:#1a202c;font-size:1.5rem;margin-bottom:6px}
-  p{color:#718096;font-size:.9rem;margin-bottom:32px}
-  input{width:100%;padding:14px 16px;border:2px solid #e2e8f0;border-radius:10px;font-size:1rem;outline:none;margin-bottom:16px;transition:border .2s}
-  input:focus{border-color:#1a56db}
-  button{width:100%;padding:14px;background:#1a56db;color:white;border:none;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer;transition:background .2s}
-  button:hover{background:#1048c2}
-  .error{background:#fff5f5;color:#c53030;border:1px solid #feb2b2;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:.88rem}
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · Grants Iraady</title>
+<meta name="robots" content="noindex">
+<script>(function(){try{var t=localStorage.getItem('gi-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t)}catch(e){}})()</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2313294B'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23fff' stroke-opacity='.5' stroke-width='1.6'/%3E%3Cpath d='M16 16L24 9' stroke='%23D9911A' stroke-width='2.6' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='16' r='2.4' fill='%23D9911A'/%3E%3C/svg%3E">
+<link rel="preload" href="/static/fonts/public-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/schibsted-grotesk-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-<div class="box">
-  <div class="logo">🌍</div>
-  <h1>Grants Hub</h1>
-  <p>Uwezo Youth Empowerment<br>Enter password to access</p>
-  <!--ERROR-->
-  <form method="POST" action="/login">
-    <input type="password" name="password" placeholder="Enter password..." autofocus required>
-    <button type="submit">Access Grants →</button>
-  </form>
+<div class="login">
+  <section class="l-left" aria-label="Grants at a glance">
+    <a class="brand" href="/login" aria-label="Grants Iraady">
+      <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><circle cx="16" cy="16" r="14" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="1.5"/><circle cx="16" cy="16" r="8.5" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.5"/><path d="M16 16L26 8" stroke="#D9911A" stroke-width="2.4" stroke-linecap="round"/><circle cx="16" cy="16" r="2.4" fill="#D9911A"/></svg>
+      <span class="brand-txt"><span class="brand-name">Grants Iraady</span><span class="brand-sub">Funding radar</span></span>
+    </a>
+
+    <div class="l-radar">
+      <svg class="radar" viewBox="0 0 300 300" role="img" aria-label="Decorative radar graphic">
+        <defs>
+          <linearGradient id="sw" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#D9911A" stop-opacity="0"/><stop offset="1" stop-color="#D9911A" stop-opacity=".55"/></linearGradient>
+          <clipPath id="disc"><circle cx="150" cy="150" r="140"/></clipPath>
+        </defs>
+        <g fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1">
+          <circle cx="150" cy="150" r="140"/><circle cx="150" cy="150" r="105"/><circle cx="150" cy="150" r="70"/><circle cx="150" cy="150" r="35"/>
+          <path d="M150 10v280M10 150h280" stroke-opacity=".28"/><path d="M51 51l198 198M249 51L51 249" stroke-opacity=".14"/>
+        </g>
+        <g clip-path="url(#disc)"><g class="sweep" style="transform-origin:150px 150px"><path d="M150 150L290 150A140 140 0 0 0 267 72Z" fill="url(#sw)" transform="rotate(32 150 150)"/><path d="M150 150L290 150" stroke="#D9911A" stroke-width="2" transform="rotate(32 150 150)"/></g></g>
+        <g fill="#F2B552"><circle cx="205" cy="92" r="4.5"/><circle cx="96" cy="118" r="3.5" fill-opacity=".8"/><circle cx="118" cy="205" r="4"/><circle cx="214" cy="188" r="3" fill-opacity=".7"/><circle cx="172" cy="122" r="3" fill-opacity=".9"/><circle cx="82" cy="170" r="3" fill-opacity=".6"/></g>
+        <circle cx="150" cy="150" r="4" fill="#fff"/>
+      </svg>
+    </div>
+
+    <div class="l-copy">
+      <h1>Find the right grant before it closes.</h1>
+      <p>One shared desk for the Uwezo and Iraady team: search open calls, see what closes first, and open the funder’s own page to apply.</p>
+      <div class="l-stats" id="l-stats" aria-live="polite">
+        <div><div class="n" id="s-active">–</div><div class="l">Open grants</div></div>
+        <div><div class="n hot" id="s-closing">–</div><div class="l">Closing within 7 days</div></div>
+        <div><div class="n sm" id="s-upd">–</div><div class="l">Last update</div></div>
+      </div>
+      <p class="l-note">
+        <svg class="i" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
+        <span><b>Fund Nest</b>, our free mobile app, uses the same data. Coming soon to Google Play.</span>
+      </p>
+    </div>
+  </section>
+
+  <section class="l-right">
+    <div class="l-form">
+      <h2>Sign in</h2>
+      <p class="sub">Enter the team password to open the grants desk.</p>
+      <!--ERROR-->
+      <form method="POST" action="/login">
+        <label class="lab" for="password">Password</label>
+        <div class="pw">
+          <input class="input" id="password" type="password" name="password" autocomplete="current-password" autofocus required>
+          <button type="button" id="pw-toggle" aria-label="Show password" aria-pressed="false">
+            <svg class="i" id="pw-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <button class="btn btn-primary btn-lg" type="submit">Open the grants desk</button>
+      </form>
+      <p class="l-help">Need access? Ask the Iraady team for the shared password.</p>
+    </div>
+    <p class="l-foot">Built by Iraady Ltd · <a href="https://iraady.com" rel="noopener">iraady.com</a> · <a href="/fundnest/privacy">Fund Nest privacy</a></p>
+  </section>
 </div>
+<script>
+(function () {
+  var f = document.getElementById('password'), b = document.getElementById('pw-toggle'), eye = document.getElementById('pw-eye');
+  var on = '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>';
+  var off = '<path d="M9.9 4.2A10 10 0 0 1 12 4c6.4 0 10 8 10 8a17 17 0 0 1-2.2 3.2M6.6 6.6A16.6 16.6 0 0 0 2 12s3.6 8 10 8a9.7 9.7 0 0 0 5.4-1.6M2 2l20 20M9.9 9.9a3 3 0 0 0 4.2 4.2"/>';
+  b.addEventListener('click', function () {
+    var show = f.type === 'password'; f.type = show ? 'text' : 'password';
+    b.setAttribute('aria-pressed', show ? 'true' : 'false'); b.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    eye.innerHTML = show ? off : on; f.focus();
+  });
+  // Real counts from the same public stats API the Fund Nest app uses.
+  var n = function (v) { return Number(v).toLocaleString('en-US'); };
+  fetch('/api/public/v1/stats').then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (d) {
+    document.getElementById('s-active').textContent = n(d.active_total);
+    document.getElementById('s-closing').textContent = n(d.closing_in_7_days);
+    var s = d.last_updated, el = document.getElementById('s-upd');
+    if (s) {
+      var dt = new Date(s.indexOf('T') < 0 ? s.replace(' ', 'T') + 'Z' : s + (/Z|[+-]\d\d:?\d\d$/.test(s) ? '' : 'Z'));
+      var h = Math.round((Date.now() - dt.getTime()) / 36e5);
+      el.textContent = h < 1 ? 'Just now' : h < 36 ? h + ' h ago' : Math.round(h / 24) + ' days ago';
+      el.title = dt.toUTCString();
+    }
+  }).catch(function () {});
+})();
+</script>
 </body>
 </html>
