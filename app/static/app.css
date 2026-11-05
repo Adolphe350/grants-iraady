@@ -100,7 +100,7 @@ svg.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-widt
   body.drawer-open .sidebar{transform:none;visibility:visible;transition-delay:0s;box-shadow:12px 0 32px rgba(0,0,0,.25)}
   body.drawer-open{overflow:hidden}
   .brand{justify-content:flex-start;padding:2px 8px 18px}
-  .brand-txt,.nav .t,.nav .cnt,.side-foot .upd,.side-btn .bt{position:static;width:auto;height:auto;overflow:visible;clip:auto;white-space:nowrap}
+  .brand-txt,.nav-label span,.nav .t,.nav .cnt,.side-foot .upd,.side-btn .bt{position:static;width:auto;height:auto;overflow:visible;clip:auto;white-space:nowrap}
   .nav-label{height:auto;margin:0;padding:16px 10px 6px;background:none;font-size:11px;overflow:visible}
   .nav a{justify-content:flex-start;padding:0 10px}
   .nav a[aria-current=page]::before{left:-12px}
@@ -160,7 +160,7 @@ svg.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .panel-body{padding:4px 18px 16px}
 .grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-.stack{display:grid;gap:16px}
+.stack{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
 @media (max-width:1099px){.grid-3{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:899px){.grid-2,.grid-3{grid-template-columns:minmax(0,1fr)}}
 
