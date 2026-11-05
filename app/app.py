@@ -13,7 +13,8 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 CORS(app)
 
 SITE_PASSWORD = os.environ.get('SITE_PASSWORD', 'Kigali2020@')
-DB_PATH = '/data/grants.db'
+DB_PATH = os.environ.get('GRANTS_DB_PATH', '/data/grants.db')   # env override is for local tests only
+STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')   # == /app/static in the container
 
 REGIONS = ['Africa','Asia','Asia-Pacific','Americas','Caribbean','Central America','Central Asia',
            'Central Europe','Eastern Africa','Eastern Europe','Global','Latin America','Middle East',
@@ -57,7 +58,7 @@ def get_db():
     return conn
 
 def init_db():
-    os.makedirs('/data', exist_ok=True)
+    os.makedirs(os.path.dirname(DB_PATH) or '.', exist_ok=True)
     conn = get_db()
     try:
         conn.execute("PRAGMA journal_mode=WAL")   # fewer writer/reader locks (scraper + web share the DB)
@@ -308,6 +309,217 @@ def ingest():
     conn.commit()
     conn.close()
     return jsonify({'added':added,'total':len(grants)})
+
+# ── Public read-only API for the Fund Nest mobile app (no login) ─────────────
+# LICENSING: grants are mirrored from a paid FundsforNGOs Premium account, so this API
+# returns ONLY the factual fields below. Never add description, full_text, url or image.
+PUBLIC_FIELDS = ('slug', 'title', 'donor', 'grant_size', 'category', 'region', 'eligible_org',
+                 'countries', 'deadline', 'deadline_iso', 'posted_date', 'apply_url', 'status')
+PUBLIC_PREFIX = '/api/public/'
+PUBLIC_RATE_LIMIT = 120      # requests per IP per minute (in memory, per gunicorn worker)
+PUBLIC_RATE_WINDOW = 60
+PUBLIC_MAX_PER_PAGE = 50
+PUBLIC_SORTS = {
+    # grants with no date ("Ongoing") always sort last when sorting by deadline
+    'deadline_asc':  "CASE WHEN deadline_iso IS NULL OR deadline_iso='' THEN 1 ELSE 0 END, deadline_iso ASC, id ASC",
+    'deadline_desc': "CASE WHEN deadline_iso IS NULL OR deadline_iso='' THEN 1 ELSE 0 END, deadline_iso DESC, id DESC",
+    'posted_desc':   "created_at DESC, id DESC",
+    'posted_asc':    "created_at ASC, id ASC",
+}
+_rate_hits = {}   # ip -> list of request timestamps within the window
+
+class ApiError(Exception):
+    def __init__(self, message, status=400):
+        super().__init__(message)
+        self.message, self.status = message, status
+
+def _client_ip():
+    # Behind Cloudflare + Coolify's proxy: prefer the real client IP they pass along.
+    ip = request.headers.get('CF-Connecting-IP') or (request.headers.get('X-Forwarded-For', '').split(',')[0].strip())
+    return ip or request.remote_addr or 'unknown'
+
+def _rate_limited(ip):
+    import time
+    now = time.time()
+    hits = [t for t in _rate_hits.get(ip, []) if now - t < PUBLIC_RATE_WINDOW]
+    if len(hits) >= PUBLIC_RATE_LIMIT:
+        _rate_hits[ip] = hits
+        return int(PUBLIC_RATE_WINDOW - (now - hits[0])) + 1
+    hits.append(now)
+    _rate_hits[ip] = hits
+    if len(_rate_hits) > 5000:   # keep memory bounded: drop idle clients
+        for k in [k for k, v in _rate_hits.items() if not v or now - v[-1] >= PUBLIC_RATE_WINDOW]:
+            _rate_hits.pop(k, None)
+    return 0
+
+@app.before_request
+def _public_api_gate():
+    if not request.path.startswith(PUBLIC_PREFIX) or request.method == 'OPTIONS':
+        return None
+    wait = _rate_limited(_client_ip())
+    if wait:
+        resp = jsonify({'error': 'Too many requests. Please slow down.'})
+        resp.status_code = 429
+        resp.headers['Retry-After'] = str(wait)
+        return resp
+    return None
+
+@app.after_request
+def _public_api_headers(resp):
+    if request.path.startswith(PUBLIC_PREFIX):
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        resp.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        if request.method == 'GET' and resp.status_code == 200:
+            resp.headers['Cache-Control'] = 'public, max-age=300'
+        else:
+            resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+@app.errorhandler(ApiError)
+def _api_error(e):
+    return jsonify({'error': e.message}), e.status
+
+@app.errorhandler(404)
+def _not_found(e):
+    if request.path.startswith(PUBLIC_PREFIX):
+        return jsonify({'error': 'Not found'}), 404
+    return e
+
+@app.errorhandler(405)
+def _bad_method(e):
+    if request.path.startswith(PUBLIC_PREFIX):
+        return jsonify({'error': 'Method not allowed'}), 405
+    return e
+
+@app.errorhandler(500)
+def _server_error(e):
+    if request.path.startswith(PUBLIC_PREFIX):
+        return jsonify({'error': 'Something went wrong. Please try again later.'}), 500
+    return e
+
+def _public_apply_url(u):
+    """Only the funder's own page. Drop anything that is not http(s) or points back at FundsforNGOs."""
+    u = (u or '').strip()
+    if not re.match(r'^https?://', u, re.I) or re.search(r'fundsforngo', u, re.I):
+        return None
+    return u
+
+def _public_grant(row, today_iso):
+    out = {k: row[k] for k in PUBLIC_FIELDS}
+    out['apply_url'] = _public_apply_url(out['apply_url'])
+    iso = out['deadline_iso'] or ''
+    out['status'] = 'expired' if (out['status'] == 'expired' or (iso and iso < today_iso)) else 'active'
+    return out
+
+def _int_arg(name, default, lo, hi):
+    raw = request.args.get(name)
+    if raw is None or raw == '':
+        return default
+    try:
+        val = int(raw)
+    except ValueError:
+        raise ApiError(name + ' must be a whole number')
+    return max(lo, min(hi, val))
+
+def _like(term):
+    return '%' + term.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
+
+@app.route('/api/public/v1/grants')
+def public_grants():
+    today_iso = datetime.utcnow().strftime('%Y-%m-%d')
+    page     = _int_arg('page', 1, 1, 100000)
+    per_page = _int_arg('per_page', 18, 1, PUBLIC_MAX_PER_PAGE)
+    search   = request.args.get('search', '').strip()[:100]
+    sort     = request.args.get('sort', 'deadline_asc')
+    status   = request.args.get('status', 'active')
+    if sort not in PUBLIC_SORTS:
+        raise ApiError('sort must be one of: ' + ', '.join(PUBLIC_SORTS))
+    if status not in ('active', 'expired', 'all'):
+        raise ApiError('status must be active, expired or all')
+
+    where, params = ["slug IS NOT NULL AND slug != ''"], []
+    if search:
+        # Title, funder, category and countries only. Never the mirrored description text.
+        where.append("(title LIKE ? ESCAPE '\\' OR donor LIKE ? ESCAPE '\\' OR category LIKE ? ESCAPE '\\' OR countries LIKE ? ESCAPE '\\')")
+        params += [_like(search)] * 4
+    for col, arg in (('donor', 'donor'), ('grant_size', 'size'), ('category', 'category')):
+        val = request.args.get(arg, '').strip()
+        if val:
+            where.append(col + " = ?"); params.append(val)
+    region = request.args.get('region', '').strip()
+    if region:
+        where.append("region = ? COLLATE NOCASE"); params.append(region)
+    eligible = request.args.get('eligible', '').strip()
+    if eligible:
+        where.append("eligible_org LIKE ? ESCAPE '\\'"); params.append(_like(eligible))
+    country = request.args.get('country', '').strip()
+    if country:
+        # whole-name match inside the comma list, so "Niger" does not match "Nigeria"
+        where.append("(',' || REPLACE(countries, ', ', ',') || ',') LIKE ? ESCAPE '\\'")
+        params.append('%,' + _like(country)[1:-1] + ',%')
+    if status == 'active':
+        where.append("(status = 'active' OR status IS NULL OR status = '') AND (deadline_iso IS NULL OR deadline_iso = '' OR deadline_iso >= ?)")
+        params.append(today_iso)
+    elif status == 'expired':
+        where.append("(status = 'expired' OR (deadline_iso IS NOT NULL AND deadline_iso != '' AND deadline_iso < ?))")
+        params.append(today_iso)
+
+    sql_where = ' WHERE ' + ' AND '.join(where)
+    conn = get_db()
+    try:
+        total = conn.execute("SELECT COUNT(*) FROM grants" + sql_where, params).fetchone()[0]
+        rows = conn.execute(
+            "SELECT " + ', '.join(PUBLIC_FIELDS) + " FROM grants" + sql_where +
+            " ORDER BY " + PUBLIC_SORTS[sort] + " LIMIT ? OFFSET ?",
+            params + [per_page, (page - 1) * per_page]).fetchall()
+    finally:
+        conn.close()
+    return jsonify({'grants': [_public_grant(r, today_iso) for r in rows], 'total': total, 'page': page,
+                    'per_page': per_page, 'pages': (total + per_page - 1) // per_page,
+                    'updated': datetime.utcnow().isoformat()})
+
+@app.route('/api/public/v1/grants/<path:slug>')
+def public_grant(slug):
+    today_iso = datetime.utcnow().strftime('%Y-%m-%d')
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT " + ', '.join(PUBLIC_FIELDS) + " FROM grants WHERE slug=?", (slug,)).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        raise ApiError('Grant not found', 404)
+    return jsonify(_public_grant(row, today_iso))
+
+@app.route('/api/public/v1/filters')
+def public_filters():
+    return filter_options.__wrapped__()
+
+@app.route('/api/public/v1/stats')
+def public_stats():
+    today = datetime.utcnow().date()
+    today_iso, in7_iso = today.isoformat(), (today + timedelta(days=7)).isoformat()
+    week_ago = (datetime.utcnow() - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+    live = "(status = 'active' OR status IS NULL OR status = '') AND (deadline_iso IS NULL OR deadline_iso = '' OR deadline_iso >= ?)"
+    conn = get_db()
+    try:
+        active = conn.execute("SELECT COUNT(*) FROM grants WHERE " + live, (today_iso,)).fetchone()[0]
+        closing = conn.execute("SELECT COUNT(*) FROM grants WHERE " + live + " AND deadline_iso != '' AND deadline_iso <= ?",
+                               (today_iso, in7_iso)).fetchone()[0]
+        added = conn.execute("SELECT COUNT(*) FROM grants WHERE " + live + " AND created_at >= ?",
+                             (today_iso, week_ago)).fetchone()[0]
+        last = conn.execute("SELECT finished_at FROM scrape_runs WHERE status='success' ORDER BY id DESC LIMIT 1").fetchone()
+        if not (last and last[0]):
+            last = conn.execute("SELECT MAX(created_at) FROM grants").fetchone()
+    finally:
+        conn.close()
+    return jsonify({'active_total': active, 'closing_in_7_days': closing, 'added_this_week': added,
+                    'last_updated': last[0] if last and last[0] else None})
+
+# Public (no login) privacy policy for the Fund Nest app (linked from the Play listing and the app).
+@app.route('/fundnest/privacy')
+def fundnest_privacy():
+    return send_file(os.path.join(STATIC_DIR, 'fundnest-privacy.html'), mimetype='text/html')
 
 # ── Scraper trigger + status ─────────────────────────────────────────────────
 SCRAPER_PATH = '/app/scraper.py'
