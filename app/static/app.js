@@ -38,39 +38,48 @@
 
   /* ───────────── Overview ───────────── */
   function overview() {
-    main.innerHTML = head('Overview', 'Deadline-first view of every open grant.') + '<div class="strip" aria-hidden="true">' + new Array(7).join('<div class="k"><div class="n">&nbsp;</div><div class="l">&nbsp;</div></div>') + '</div>';
+    main.innerHTML = head('Overview', 'Deadline-first view of every open grant.') + '<div class="stats" aria-hidden="true">' + new Array(5).join('<div class="stat"><div class="n">&nbsp;</div><div class="l">&nbsp;</div></div>') + '</div>';
     Promise.all([
       GI.overview(),
-      GI.get('/api/grants?' + GI.q({ closing_within: 7, sort: 'deadline_asc', per_page: 8 })),
-      GI.get('/api/grants?' + GI.q({ posted_within: 7, sort: 'posted_date_desc', per_page: 8 }))
+      GI.get('/api/grants?' + GI.q({ closing_within: 7, sort: 'deadline_asc', per_page: 6 })),
+      GI.get('/api/grants?' + GI.q({ posted_within: 7, sort: 'posted_date_desc', per_page: 6 }))
     ]).then(function (r) {
       var o = r[0], cl = r[1], nw = r[2];
-      var searchForm = '<form class="field-icon" action="/" method="get" role="search" style="min-width:min(100%,340px)"><input type="hidden" name="view" value="all">' + icon('search') +
+      var searchForm = '<form class="field-icon ov-search" action="/" method="get" role="search"><input type="hidden" name="view" value="all">' + icon('search') +
         '<label class="sr-only" for="ov-q">Search all grants</label><input class="input" id="ov-q" type="search" name="q" placeholder="Search all grants" autocomplete="off"></form>';
-      var sub = num(o.active) + ' open grants from ' + num(o.donors) + ' funders. Last update ' + esc(GI.ago(o.last_success || o.last_grant_added) || 'unknown') + '.';
-      var strip = '<div class="strip">' +
-        '<a href="' + link({ view: 'all' }) + '"><div class="n">' + num(o.active) + '</div><div class="l">Open grants</div></a>' +
-        '<a class="a-red" href="' + link({ view: 'closing', days: 0 }) + '"><div class="n">' + num(o.closing_today) + '</div><div class="l">Close today</div></a>' +
-        '<a class="hot" href="' + link({ view: 'closing', days: 3 }) + '"><div class="n">' + num(o.closing_3) + '</div><div class="l">Close within 3 days</div></a>' +
-        '<a href="' + link({ view: 'closing', days: 7 }) + '"><div class="n">' + num(o.closing_7) + '</div><div class="l">Close within 7 days</div></a>' +
-        '<a class="a-green" href="' + link({ view: 'new' }) + '"><div class="n">' + num(o.new_7) + '</div><div class="l">Posted this week</div></a>' +
-        '<a href="' + link({ view: 'funder' }) + '"><div class="n">' + num(o.donors) + '</div><div class="l">Funders</div></a></div>';
+      var sub = num(o.active) + ' open grants from ' + num(o.donors) + ' funders. Updated ' + esc(GI.ago(o.last_success || o.last_grant_added) || 'recently') + '.';
+
+      function stat(cls, n, l, href) {
+        return '<a class="stat ' + cls + '" href="' + href + '"><div class="n">' + num(n) + '</div><div class="l">' + l + '</div></a>';
+      }
+      var stats = '<div class="stats">' +
+        stat('stat-hero', o.active, 'Open grants', link({ view: 'all' })) +
+        stat('is-red', o.closing_today, 'Close today', link({ view: 'closing', days: 0 })) +
+        stat('is-amber', o.closing_3, 'Close in 3 days', link({ view: 'closing', days: 3 })) +
+        stat('is-green', o.new_7, 'Posted this week', link({ view: 'new' })) +
+        stat('', o.donors, 'Funders', link({ view: 'funder' })) + '</div>';
+
+      var lists = '<div class="grid-2 ov-lists">' +
+        '<section class="panel" aria-labelledby="h-cl"><div class="panel-head"><h2 id="h-cl">Closing soonest</h2><a href="' + link({ view: 'closing' }) + '">All ' + num(o.closing_7) + ' this week</a></div>' + miniList(cl.grants) + '</section>' +
+        '<section class="panel" aria-labelledby="h-nw"><div class="panel-head"><h2 id="h-nw">Newly posted</h2><a href="' + link({ view: 'new' }) + '">All ' + num(o.new_7) + ' this week</a></div>' + miniList(nw.grants, 'new') + '</section></div>';
+
       var wk = o.closing_by_week || [], wmax = Math.max.apply(null, wk.concat([1]));
       var labels = ['This wk', '+1 wk', '+2 wk', '+3 wk', '+4 wk', '+5 wk', '+6 wk', '+7 wk'];
       var cols = '<div class="cols">' + wk.map(function (v, i) {
         return '<a class="c" href="' + link({ view: 'closing', days: 7 * i + 6 }) + '" title="' + v + ' close in this window"><span class="v">' + num(v) + '</span><span class="bar" style="height:' + Math.max(2, Math.round(v / wmax * 100)) + '%"></span></a>';
       }).join('') + '</div><div class="cols-lab" aria-hidden="true">' + labels.map(function (l) { return '<span>' + l + '</span>'; }).join('') + '</div>';
       var gl = o.health ? o.health.global_region : 0;
-      main.innerHTML = head('Overview', sub, searchForm) + strip +
-        '<div class="grid-2" style="margin-bottom:16px">' +
-        '<section class="panel" aria-labelledby="h-cl"><div class="panel-head"><h2 id="h-cl">Closing soonest</h2><a href="' + link({ view: 'closing' }) + '">All ' + num(o.closing_7) + ' closing this week</a></div>' + miniList(cl.grants) + '</section>' +
-        '<section class="panel" aria-labelledby="h-nw"><div class="panel-head"><h2 id="h-nw">Newly posted</h2><a href="' + link({ view: 'new' }) + '">All ' + num(o.new_7) + ' from this week</a></div>' + miniList(nw.grants, 'new') + '</section></div>' +
-        '<section class="panel" style="margin-bottom:16px" aria-labelledby="h-wk"><div class="panel-head"><h2 id="h-wk">Deadlines by week</h2><span class="note" style="margin:0">Next 8 weeks, open grants. Click a bar to list up to that week.</span></div><div class="panel-body">' + cols + '</div></section>' +
+      var insights = '<details class="insights" open><summary><span class="sm-t">Insights</span><span class="sm-h">deadlines, categories, regions &amp; sizes</span></summary>' +
+        '<div class="insights-body">' +
+        '<section class="panel" aria-labelledby="h-wk"><div class="panel-head"><h2 id="h-wk">Deadlines by week</h2><span class="note" style="margin:0">Next 8 weeks. Click a bar to list up to that week.</span></div><div class="panel-body">' + cols + '</div></section>' +
         '<div class="grid-3">' +
         '<section class="panel" aria-labelledby="h-ct"><div class="panel-head"><h2 id="h-ct">By category</h2><a href="' + link({ view: 'category' }) + '">All</a></div><div class="panel-body">' + bars(o.categories, 0, function (x) { return link({ view: 'all', category: x.name }); }, '', 8) + '</div></section>' +
         '<section class="panel" aria-labelledby="h-rg"><div class="panel-head"><h2 id="h-rg">By region</h2><a href="' + link({ view: 'region' }) + '">All</a></div><div class="panel-body">' + bars(o.regions, 0, function (x) { return link({ view: 'all', region: x.name }); }, 'amber', 7) +
         '<p class="note">' + num(gl) + ' of ' + num(o.active) + ' open grants are not tied to one region and show as Global.</p></div></section>' +
-        '<section class="panel" aria-labelledby="h-sz"><div class="panel-head"><h2 id="h-sz">By grant size</h2></div><div class="panel-body">' + bars(o.sizes, 0, function (x) { return link({ view: 'all', size: x.name }); }, 'green', 8) + '</div></section></div>';
+        '<section class="panel" aria-labelledby="h-sz"><div class="panel-head"><h2 id="h-sz">By grant size</h2></div><div class="panel-body">' + bars(o.sizes, 0, function (x) { return link({ view: 'all', size: x.name }); }, 'green', 8) + '</div></section></div>' +
+        '</div></details>';
+
+      main.innerHTML = head('Overview', sub, searchForm) + stats + lists + insights;
       done();
     }).catch(function (e) { errorBlock(e.message, overview); });
   }
